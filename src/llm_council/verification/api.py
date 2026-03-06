@@ -17,7 +17,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -960,9 +960,13 @@ Be specific and cite file paths and line numbers when identifying issues."""
     return prompt
 
 
+ProgressCallback = Callable[[int, int, str], Awaitable[None]]
+
+
 async def run_verification(
     request: VerifyRequest,
     store: TranscriptStore,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> Dict[str, Any]:
     """
     Run verification using LLM Council.
@@ -976,6 +980,7 @@ async def run_verification(
     Args:
         request: Verification request
         store: Transcript store for persistence
+        on_progress: Optional async callback(step, total, message) for progress
 
     Returns:
         Verification result dictionary
@@ -1014,13 +1019,39 @@ async def run_verification(
         # Get tier-appropriate models and timeouts (Issue #325)
         tier_contract = create_tier_contract(request.tier)
         tier_timeout = get_tier_timeout(request.tier)
+        num_models = len(tier_contract.allowed_models)
+
+        # Progress: num_models (stage1 per-model) + 3 (stage2 + stage3 + finalize)
+        total_steps = num_models + 3
+        current_step = 0
+
+        async def report_progress(message: str):
+            nonlocal current_step
+            current_step += 1
+            if on_progress:
+                try:
+                    await on_progress(current_step, total_steps, message)
+                except Exception:
+                    pass  # Progress reporting is best-effort
+
+        # Bridge stage1 per-model progress to our callback
+        async def stage1_progress(completed: int, total: int, message: str):
+            nonlocal current_step
+            current_step = max(current_step, completed)  # Monotonic (models finish out-of-order)
+            if on_progress:
+                try:
+                    await on_progress(completed, total_steps, f"Stage 1: {message}")
+                except Exception:
+                    pass
 
         # Stage 1: Collect individual model responses with tier-appropriate models
         stage1_results, stage1_usage, _model_statuses = await stage1_collect_responses_with_status(
             verification_query,
             timeout=tier_timeout["per_model"],
             models=tier_contract.allowed_models,
+            on_progress=stage1_progress,
         )
+        current_step = num_models
 
         # Persist Stage 1
         store.write_stage(
@@ -1034,6 +1065,7 @@ async def run_verification(
         )
 
         # Stage 2: Peer ranking with rubric evaluation
+        await report_progress("Stage 2: Peer review in progress...")
         stage2_results, label_to_model, stage2_usage = await stage2_collect_rankings(
             verification_query, stage1_results
         )
@@ -1054,6 +1086,7 @@ async def run_verification(
         aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
 
         # Stage 3: Chairman synthesis with verdict
+        await report_progress("Stage 3: Synthesizing verdict...")
         stage3_result, stage3_usage, verdict_result = await stage3_synthesize_final(
             verification_query,
             stage1_results,
@@ -1073,6 +1106,8 @@ async def run_verification(
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )
+
+        await report_progress("Finalizing verification result...")
 
         # Extract verdict and scores from council output
         verification_output = build_verification_result(

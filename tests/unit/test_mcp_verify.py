@@ -361,7 +361,7 @@ class TestMCPVerifyToolContextIntegration:
 
     @pytest.mark.asyncio
     async def test_verify_reports_progress(self):
-        """verify tool should report progress via MCP context when available."""
+        """verify tool should pass on_progress to run_verification and bridge to ctx."""
         from llm_council.mcp_server import verify
 
         mock_ctx = MagicMock()
@@ -382,11 +382,17 @@ class TestMCPVerifyToolContextIntegration:
             patch("llm_council.mcp_server.run_verification") as mock_run,
             patch("llm_council.mcp_server.create_transcript_store"),
         ):
-            mock_run.return_value = mock_result
+            # Simulate run_verification calling the progress callback
+            async def run_with_progress(request, store, on_progress=None):
+                if on_progress:
+                    await on_progress(1, 7, "Stage 1: model complete")
+                return mock_result
+
+            mock_run.side_effect = run_with_progress
 
             await verify(snapshot_id="abc1234", ctx=mock_ctx)
 
-            # Progress should be reported at least once
+            # Progress should be reported via ctx bridge
             assert mock_ctx.report_progress.call_count >= 1
 
     @pytest.mark.asyncio

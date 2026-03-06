@@ -395,21 +395,16 @@ async def verify(
         exit_code (0=PASS, 1=FAIL, 2=UNCLEAR), rubric scores, blocking issues,
         rationale, and transcript location for audit trail.
     """
-    # Report initial progress
-    if ctx:
-        try:
-            await ctx.report_progress(1, 3, "Starting verification...")
-        except Exception:
-            pass  # Progress reporting is best-effort
 
-    try:
-        # Report verification in progress
+    # Progress reporting bridge: MCP context <-> run_verification callback
+    async def on_progress(step: int, total: int, message: str):
         if ctx:
             try:
-                await ctx.report_progress(2, 3, "Running council verification...")
+                await ctx.report_progress(step, total, message)
             except Exception:
-                pass
+                pass  # Progress reporting is best-effort
 
+    try:
         # Create request object and transcript store
         request = VerifyRequest(
             snapshot_id=snapshot_id,
@@ -420,15 +415,8 @@ async def verify(
         )
         store = create_transcript_store()
 
-        # Run the verification
-        result = await run_verification(request, store)
-
-        # Report completion
-        if ctx:
-            try:
-                await ctx.report_progress(3, 3, "Verification complete")
-            except Exception:
-                pass
+        # Run the verification with progress callback
+        result = await run_verification(request, store, on_progress=on_progress if ctx else None)
 
         # Return formatted output for human readability
         # JSON is also included at the end for programmatic parsing
