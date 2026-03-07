@@ -791,6 +791,9 @@ To prevent accidental direct pushes (even by admins), enable in GitHub:
 - **VerifyResponse Fields (ADR-040)**:
   - `timeout_fired: bool`: True if global deadline was exceeded
   - `completed_stages: List[str]`: Stages completed before timeout (e.g. `["stage1", "stage2"]`)
+- **VerifyResponse Fields (ADR-041)**:
+  - `timing: Optional[Dict]`: Per-stage and total timing (`stage1_elapsed_ms`, `stage2_elapsed_ms`, `stage3_elapsed_ms`, `total_elapsed_ms`, `global_deadline_ms`, `budget_utilization`)
+  - `input_metrics: Optional[Dict]`: Input size metrics (`content_chars`, `tier_max_chars`, `num_models`, `num_reviewers`, `tier`)
 - **Waterfall Time Budgeting (ADR-040 Option A)**:
   - Stage 1: 50% of remaining global deadline
   - Stage 2: 70% of remaining after Stage 1
@@ -800,6 +803,12 @@ To prevent accidental direct pushes (even by admins), enable in GitHub:
   - `partial_state` dict passed to pipeline, updated after each stage completes
   - Survives `asyncio.CancelledError` from `wait_for` timeout
   - Timeout handler reads `partial_state["completed_stages"]` for partial result
+  - ADR-041: Also stores `stage_timings`, `model_statuses`, `aggregate_rankings` for telemetry
+- **Performance Tracker Wiring (ADR-041)**:
+  - `persist_session_performance_data()` called after successful pipeline completion
+  - Converts `aggregate_rankings` list to dict keyed by model_id
+  - Wrapped in try/except — telemetry failures never fail verification
+  - Not called on timeout path (incomplete data)
 - **stage2/stage3 Timeout Params (ADR-040)**:
   - `stage2_collect_rankings()` now accepts `timeout`, `models`, `on_progress` params
   - When `on_progress` provided: uses `asyncio.as_completed` + `query_model` for per-model progress

@@ -13,12 +13,15 @@ Exit codes:
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -47,6 +50,7 @@ from llm_council.verification.verdict_extractor import (
     extract_verdict_from_synthesis,
     calculate_confidence_from_agreement,
 )
+from llm_council.performance.integration import persist_session_performance_data
 
 # Router for verification endpoints
 router = APIRouter(tags=["verification"])
@@ -154,6 +158,15 @@ class VerifyResponse(BaseModel):
     expansion_warnings: Optional[List[str]] = Field(
         default=None,
         description="Warnings from directory expansion (skipped files, etc.)",
+    )
+    # ADR-041: Verification telemetry fields
+    timing: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Per-stage and total timing in milliseconds",
+    )
+    input_metrics: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Input size metrics (content_chars, tier_max_chars, num_models, num_reviewers, tier)",
     )
 
 
@@ -1059,6 +1072,10 @@ async def _run_verification_pipeline(
     """
     num_models = len(tier_contract.allowed_models)
 
+    # ADR-041: Initialize timing capture
+    pipeline_start = time.monotonic()
+    partial_state["stage_timings"] = {}
+
     # Progress: num_models (stage1) + num_models (stage2) + 2 (stage3 + finalize)
     total_steps = num_models + num_models + 2
     current_step = 0
@@ -1088,17 +1105,25 @@ async def _run_verification_pipeline(
     stage1_per_model = min(stage1_budget, tier_timeout["per_model"])
 
     # Stage 1: Collect individual model responses with tier-appropriate models
-    stage1_results, stage1_usage, _model_statuses = await stage1_collect_responses_with_status(
-        verification_query,
-        timeout=stage1_per_model,
-        models=tier_contract.allowed_models,
-        on_progress=stage1_progress,
-    )
+    stage1_start = time.monotonic()
+    try:
+        stage1_results, stage1_usage, model_statuses = await stage1_collect_responses_with_status(
+            verification_query,
+            timeout=stage1_per_model,
+            models=tier_contract.allowed_models,
+            on_progress=stage1_progress,
+        )
+    finally:
+        partial_state["stage_timings"]["stage1_elapsed_ms"] = int(
+            (time.monotonic() - stage1_start) * 1000
+        )
     current_step = num_models
 
     # ADR-040: Persist stage1 results to partial_state (survives cancellation)
     partial_state["completed_stages"].append("stage1")
     partial_state["stage1_results"] = stage1_results
+    # ADR-041: Preserve model_statuses for performance tracker
+    partial_state["model_statuses"] = model_statuses
 
     # Persist Stage 1
     store.write_stage(
@@ -1135,13 +1160,19 @@ async def _run_verification_pipeline(
     stage2_budget = remaining * 0.70
     stage2_per_model = min(stage2_budget, tier_timeout["per_model"])
 
-    stage2_results, label_to_model, stage2_usage = await stage2_collect_rankings(
-        verification_query,
-        stage1_results,
-        timeout=stage2_per_model,
-        models=tier_contract.allowed_models,
-        on_progress=stage2_progress,
-    )
+    stage2_start = time.monotonic()
+    try:
+        stage2_results, label_to_model, stage2_usage = await stage2_collect_rankings(
+            verification_query,
+            stage1_results,
+            timeout=stage2_per_model,
+            models=tier_contract.allowed_models,
+            on_progress=stage2_progress,
+        )
+    finally:
+        partial_state["stage_timings"]["stage2_elapsed_ms"] = int(
+            (time.monotonic() - stage2_start) * 1000
+        )
     current_step = num_models + num_models
 
     # ADR-040: Persist stage2 results to partial_state
@@ -1163,6 +1194,8 @@ async def _run_verification_pipeline(
 
     # Calculate aggregate rankings
     aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
+    # ADR-041: Preserve aggregate_rankings for performance tracker
+    partial_state["aggregate_rankings"] = aggregate_rankings
 
     # Stage 3: Chairman synthesis with verdict
     # ADR-040: Waterfall - Stage 3 gets all remaining time
@@ -1170,14 +1203,20 @@ async def _run_verification_pipeline(
     stage3_budget = min(remaining, tier_timeout["per_model"])
 
     await report_progress("Stage 3: Synthesizing verdict...")
-    stage3_result, stage3_usage, verdict_result = await stage3_synthesize_final(
-        verification_query,
-        stage1_results,
-        stage2_results,
-        aggregate_rankings=aggregate_rankings,
-        verdict_type=CouncilVerdictType.BINARY,
-        timeout=stage3_budget,
-    )
+    stage3_start = time.monotonic()
+    try:
+        stage3_result, stage3_usage, verdict_result = await stage3_synthesize_final(
+            verification_query,
+            stage1_results,
+            stage2_results,
+            aggregate_rankings=aggregate_rankings,
+            verdict_type=CouncilVerdictType.BINARY,
+            timeout=stage3_budget,
+        )
+    finally:
+        partial_state["stage_timings"]["stage3_elapsed_ms"] = int(
+            (time.monotonic() - stage3_start) * 1000
+        )
 
     # ADR-040: Persist stage3 results to partial_state
     partial_state["completed_stages"].append("stage3")
@@ -1208,6 +1247,25 @@ async def _run_verification_pipeline(
     confidence = verification_output["confidence"]
     exit_code = _verdict_to_exit_code(verdict)
 
+    # ADR-041: Build timing summary
+    total_elapsed_ms = int((time.monotonic() - pipeline_start) * 1000)
+    global_deadline_ms = int(
+        (tier_contract.deadline_ms / 1000) * VERIFICATION_TIMEOUT_MULTIPLIER * 1000
+    )
+    timing = {
+        **partial_state.get("stage_timings", {}),
+        "total_elapsed_ms": total_elapsed_ms,
+        "global_deadline_ms": global_deadline_ms,
+        "budget_utilization": round(total_elapsed_ms / max(global_deadline_ms, 1), 3),
+    }
+    input_metrics = {
+        "content_chars": len(verification_query),
+        "tier_max_chars": TIER_MAX_CHARS.get(request.tier, 50000),
+        "num_models": num_models,
+        "num_reviewers": num_models,
+        "tier": request.tier,
+    }
+
     result = {
         "verification_id": verification_id,
         "verdict": verdict,
@@ -1220,6 +1278,8 @@ async def _run_verification_pipeline(
         "partial": False,
         "timeout_fired": False,
         "completed_stages": ["stage1", "stage2", "stage3"],
+        "timing": timing,
+        "input_metrics": input_metrics,
     }
 
     # Persist result
@@ -1348,11 +1408,29 @@ async def run_verification(
                 ),
                 timeout=global_deadline,
             )
+
+            # ADR-041: Wire performance tracker (telemetry must never fail verification)
+            try:
+                model_statuses = partial_state.get("model_statuses", {})
+                agg_list = partial_state.get("aggregate_rankings", [])
+                agg_dict = {r["model"]: r for r in agg_list} if agg_list else {}
+                if model_statuses and agg_dict:
+                    persist_session_performance_data(
+                        session_id=verification_id,
+                        model_statuses=model_statuses,
+                        aggregate_rankings=agg_dict,
+                        stage2_results=partial_state.get("stage2_results"),
+                    )
+            except Exception:
+                logger.debug("ADR-041: Performance telemetry persistence failed", exc_info=True)
+
             return result
 
         except asyncio.TimeoutError:
             # Global deadline exceeded - return partial result with completed stages
             completed = partial_state["completed_stages"]
+            stage_timings = partial_state.get("stage_timings", {})
+            global_deadline_ms = int(global_deadline * 1000)
             return {
                 "verification_id": verification_id,
                 "verdict": "unclear",
@@ -1371,6 +1449,19 @@ async def run_verification(
                 "partial": True,
                 "timeout_fired": True,
                 "completed_stages": completed,
+                "timing": {
+                    **stage_timings,
+                    "total_elapsed_ms": global_deadline_ms,
+                    "global_deadline_ms": global_deadline_ms,
+                    "budget_utilization": 1.0,
+                },
+                "input_metrics": {
+                    "content_chars": len(verification_query),
+                    "tier_max_chars": TIER_MAX_CHARS.get(request.tier, 50000),
+                    "num_models": len(tier_contract.allowed_models),
+                    "num_reviewers": len(tier_contract.allowed_models),
+                    "tier": request.tier,
+                },
             }
 
 

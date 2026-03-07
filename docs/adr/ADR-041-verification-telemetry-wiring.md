@@ -1,6 +1,6 @@
 # ADR-041: Verification Telemetry Wiring
 
-**Status:** Proposed 2026-03-07
+**Status:** Accepted 2026-03-07
 **Date:** 2026-03-07
 **Decision Makers:** Chris Joseph, LLM Council
 **Related:** ADR-026 (Phase 3), ADR-040 (Phase 2 item 4)
@@ -244,7 +244,7 @@ Once data accumulates (target: 30+ sessions for PRELIMINARY confidence):
 - **Test impact**: Integration tests that run real verification will create JSONL files; test fixtures should use temp directories with cleanup
 
 ### Neutral
-- **No schema changes to VerifyResponse**: Timing data goes to transcripts and JSONL, not API response
+- **Additive VerifyResponse schema**: Optional `timing` and `input_metrics` fields added to `VerifyResponse` (backward compatible — both default to `None`)
 - **Backward compatible**: transcript `result.json` gains new `timing` field (additive)
 
 ## Compliance / Validation

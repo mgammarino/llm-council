@@ -280,7 +280,7 @@ Council-suggested addition: if a threshold of reviewers (e.g., 3 out of 5) estab
 1. **Option D: Enhanced progress reporting** with committed JSON schema
 2. **Option B: Pre-flight tier compliance check** integrated into first progress callback
 3. **Tiered input size limits** with helpful rejection messages
-4. Add observability metrics (stage durations, timeout frequency, estimated vs actual duration)
+4. Add observability metrics (stage durations, timeout frequency, estimated vs actual duration) — **Implemented in ADR-041**: per-stage timing, budget utilization, and input metrics now recorded in verification transcripts and result dicts
 
 ### Success Criteria
 

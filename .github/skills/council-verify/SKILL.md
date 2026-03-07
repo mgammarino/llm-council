@@ -70,13 +70,28 @@ Use LLM Council's multi-model deliberation to verify work with structured, machi
   "transcript_location": ".council/logs/...",
   "partial": false,
   "timeout_fired": false,
-  "completed_stages": ["stage1", "stage2", "stage3"]
+  "completed_stages": ["stage1", "stage2", "stage3"],
+  "timing": {
+    "stage1_elapsed_ms": 45000,
+    "stage2_elapsed_ms": 78000,
+    "stage3_elapsed_ms": 19000,
+    "total_elapsed_ms": 142000,
+    "global_deadline_ms": 270000,
+    "budget_utilization": 0.53
+  },
+  "input_metrics": {
+    "content_chars": 32000,
+    "tier_max_chars": 50000,
+    "num_models": 4,
+    "num_reviewers": 4,
+    "tier": "high"
+  }
 }
 ```
 
 ### Timeout & Partial Results (ADR-040)
 
-If `timeout_fired: true`, the tier deadline was exceeded. Check `completed_stages` for progress. Oversized inputs are rejected with a helpful `rationale`. Max input: quick=15K, balanced=30K, high/reasoning=50K chars.
+If `timeout_fired: true`, the tier deadline was exceeded. Check `completed_stages` for progress. Max input: quick=15K, balanced=30K, high/reasoning=50K chars. `timing.budget_utilization` shows time used vs deadline (1.0 on timeout). On timeout, only completed stages appear in `timing`.
 
 ## Exit Codes (for CI/CD)
 
@@ -87,24 +102,15 @@ If `timeout_fired: true`, the tier deadline was exceeded. Check `completed_stage
 ## Example Usage
 
 ```bash
-# Verify current changes
 council-verify --snapshot $(git rev-parse HEAD) --rubric-focus Security
-
-# Verify specific files
-council-verify --target-paths "src/auth.py,src/api.py" --snapshot abc123
-
-# Quick sanity check (faster, cheaper)
-council-verify --snapshot $(git rev-parse HEAD) --tier balanced
-
-# Deep reasoning review for complex changes
-council-verify --snapshot $(git rev-parse HEAD) --tier reasoning --rubric-focus Security
+council-verify --snapshot $(git rev-parse HEAD) --tier reasoning
 ```
 
 ## Progressive Disclosure
 
-- **Level 1**: This metadata (~200 tokens)
-- **Level 2**: Full instructions above (~600 tokens)
-- **Level 3**: See `references/rubrics.md` for detailed rubric definitions
+- **Level 1**: Metadata (~200 tokens)
+- **Level 2**: Full instructions (~800 tokens)
+- **Level 3**: See `references/rubrics.md`
 
 ## Related Skills
 

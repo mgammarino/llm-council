@@ -1031,6 +1031,8 @@ Implemented using TDD with 80 new tests (1299 total tests pass).
 - JSONL storage pattern (follows `bias_persistence.py`)
 - Configuration via `PerformanceTrackerConfig` in unified_config.py
 
+**Known Gaps:** `persist_session_performance_data()` was not wired to any production call site until ADR-041 connected it to the verification pipeline. The `consult_council` MCP tool path remains unwired (deferred to a follow-up task per ADR-041).
+
 **Validation Gate:** Phase 3 complete when:
 - 100+ sessions tracked with metrics (tracked via confidence_level=HIGH)
 - Internal quality scores correlate with Borda outcomes (by design)
