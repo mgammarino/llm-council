@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.32] - 2026-03-11
+
+### Changed
+
+- **Default verification tier changed from `high` to `balanced`** — frontier models on large inputs frequently exceed timeouts; `balanced` completes reliably for routine code reviews
+- Updated council-verify skill with tier selection guidance based on content size and criticality
+
 ## [0.24.31] - 2026-03-08
 
 ### Added

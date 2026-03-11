@@ -84,7 +84,7 @@ class VerifyRequest(BaseModel):
         description="Minimum confidence for PASS verdict",
     )
     tier: str = Field(
-        default="high",
+        default="balanced",
         description="Confidence tier for model selection: quick, balanced, high, reasoning",
         pattern="^(quick|balanced|high|reasoning)$",
     )

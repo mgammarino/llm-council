@@ -372,7 +372,7 @@ async def verify(
     target_paths: Optional[List[str]] = None,
     rubric_focus: Optional[str] = None,
     confidence_threshold: float = 0.7,
-    tier: str = "high",
+    tier: str = "balanced",
     ctx: Optional[Context] = None,
 ) -> str:
     """
@@ -387,7 +387,7 @@ async def verify(
         target_paths: Optional list of specific file paths to verify.
         rubric_focus: Optional rubric focus area (e.g., "security", "performance").
         confidence_threshold: Minimum confidence for pass verdict (0.0-1.0, default 0.7).
-        tier: Confidence tier for model selection - "quick", "balanced", "high" (default), or "reasoning".
+        tier: Confidence tier for model selection - "quick", "balanced" (default), "high", or "reasoning".
         ctx: MCP context for progress reporting (injected automatically).
 
     Returns:

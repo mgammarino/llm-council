@@ -33,12 +33,12 @@ class TestVerifyRequestTierField:
         )
         assert request.tier == "high"
 
-    def test_verify_request_tier_defaults_to_high(self):
-        """VerifyRequest tier should default to 'high'."""
+    def test_verify_request_tier_defaults_to_balanced(self):
+        """VerifyRequest tier should default to 'balanced'."""
         from llm_council.verification.api import VerifyRequest
 
         request = VerifyRequest(snapshot_id="abc1234")
-        assert request.tier == "high"
+        assert request.tier == "balanced"
 
     def test_verify_request_accepts_valid_tiers(self):
         """VerifyRequest should accept all valid tier values."""
@@ -130,7 +130,7 @@ class TestRunVerificationTierSupport:
 
         high_models = _get_tier_model_pools()["high"]
 
-        request = VerifyRequest(snapshot_id="abc1234")  # defaults to "high"
+        request = VerifyRequest(snapshot_id="abc1234", tier="high")
 
         with (
             patch(
@@ -305,4 +305,4 @@ class TestMCPVerifyToolTierParameter:
 
             mock_run.assert_called_once()
             request_obj = mock_run.call_args[0][0]
-            assert request_obj.tier == "high"
+            assert request_obj.tier == "balanced"

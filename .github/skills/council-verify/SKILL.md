@@ -42,16 +42,18 @@ Use LLM Council's multi-model deliberation to verify work with structured, machi
 | `snapshot_id` | string | required | Git commit SHA for reproducibility |
 | `rubric_focus` | string | null | Focus area: "Security", "Performance", "Accessibility" |
 | `confidence_threshold` | float | 0.7 | Minimum confidence for PASS verdict |
-| `tier` | string | "high" | Confidence tier: "quick", "balanced", "high", "reasoning" |
+| `tier` | string | "balanced" | Confidence tier: "quick", "balanced", "high", "reasoning" |
 
 ### Tier Selection Guide
 
-| Tier | Use When | Models | Timeout |
-|------|----------|--------|---------|
-| `quick` | Fast sanity checks, simple validations | Economy models | ~30s |
-| `balanced` | Routine code reviews, standard checks | Mid-tier models | ~90s |
-| `high` | Quality-critical verification (default) | Frontier models | ~180s |
-| `reasoning` | Complex architectural reviews, security audits | Reasoning models | ~600s |
+| Tier | Use When | Timeout | Max Input |
+|------|----------|---------|-----------|
+| `quick` | Fast sanity checks, small diffs | ~30s | 15K chars |
+| `balanced` | **Default.** Routine verification | ~90s | 30K chars |
+| `high` | Security-critical reviews only | ~180s | 50K chars |
+| `reasoning` | Complex architectural decisions | ~600s | 50K chars |
+
+**Important**: `high`/`reasoning` use slow frontier models. For large diffs (>20K chars), prefer `balanced` to avoid timeouts.
 
 ## Output Schema
 
