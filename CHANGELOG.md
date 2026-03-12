@@ -9,16 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.24.33] - 2026-03-12
 
-### Added
+### Fixed
 
-- **Verdict handling guidance in council-verify skill** — explicit instructions for PASS/FAIL/UNCLEAR actions, preventing retry loops on rejected code
+- **Calling agents stuck in verify retry loops** ([#327](https://github.com/amiable-dev/llm-council/issues/327)) — agents retried FAIL/UNCLEAR verdicts instead of fixing code, burning 26+ minutes on unchanged snapshots. Added "Handling Verdicts" section to council-verify skill with explicit PASS/FAIL/UNCLEAR action guidance and a "never retry same snapshot" rule.
 
 ## [0.24.32] - 2026-03-11
 
-### Changed
+### Fixed
 
-- **Default verification tier changed from `high` to `balanced`** — frontier models on large inputs frequently exceed timeouts; `balanced` completes reliably for routine code reviews
-- Updated council-verify skill with tier selection guidance based on content size and criticality
+- **Verification timeouts on large code inputs** ([#327](https://github.com/amiable-dev/llm-council/issues/327)) — default tier `high` used frontier models (opus-4.6, gpt-5.4-pro) that took 600+ seconds on 25K+ token inputs, exceeding the 270s global deadline. Changed default to `balanced` (mid-tier models, 90s deadline). Added tier selection guidance to skill based on content size and criticality.
 
 ## [0.24.31] - 2026-03-08
 
