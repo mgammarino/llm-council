@@ -41,6 +41,7 @@ async def main():
             
         # VERY IMPORTANT: The open-source project is mid-migration.
         # We must overwrite the absolute base default models here so the engine uses our tier's list.
+        # This prevents "phantom" (preview) models from being queried without user consent.
         if target_models:
             config.council.models = target_models
             
