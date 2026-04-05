@@ -123,6 +123,26 @@ def parse_model_list(value: Union[str, List[str]]) -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _get_safe_home_directory() -> Path:
+    """Get the user's home directory safely, with fallout for headless envs.
+
+    On Windows, Path.home() can raise RuntimeError if environment variables
+    like USERPROFILE are not set (e.g., in tests with cleared os.environ).
+
+    Returns:
+        Path to home directory, or current directory as a safe fallback for tests.
+    """
+    try:
+        return Path.home()
+    except (RuntimeError, KeyError):
+        # Fallback for headless environments or tests that clear os.environ
+        # Use current working directory or /tmp if that fails
+        try:
+            return Path.cwd()
+        except Exception:
+            return Path("/tmp")
+
+
 # Type alias for model lists with auto-detection
 ModelList = Annotated[List[str], BeforeValidator(parse_model_list)]
 
@@ -178,48 +198,48 @@ class TierConfig(BaseModel):
         default_pools = {
             "quick": TierPoolConfig(
                 models=[
-                    "openai/gpt-5-mini",
-                    "anthropic/claude-haiku-4.5",
-                    "google/gemini-3.1-flash-lite-preview",
-                    "deepseek/deepseek-v3.2",
+                    "openai/gpt-4o-mini",
+                    "anthropic/claude-3-haiku",
+                    "google/gemini-2.0-flash-lite-001",
+                    "meta-llama/llama-3.1-8b-instruct",
                 ],
                 timeout_seconds=30,
                 peer_review="lightweight",
             ),
             "balanced": TierPoolConfig(
                 models=[
-                    "openai/gpt-5.3-chat",
-                    "anthropic/claude-sonnet-4.6",
-                    "google/gemini-3.1-flash-lite-preview",
-                    "deepseek/deepseek-v3.2",
+                    "openai/gpt-4o-mini",
+                    "anthropic/claude-3.5-haiku",
+                    "google/gemini-2.0-flash-001",
+                    "meta-llama/llama-3.1-70b-instruct",
                 ],
                 timeout_seconds=90,
             ),
             "high": TierPoolConfig(
                 models=[
-                    "openai/gpt-5.4",
-                    "anthropic/claude-opus-4.6",
-                    "google/gemini-3.1-pro-preview",
-                    "deepseek/deepseek-v3.2-speciale",
+                    "openai/gpt-4o",
+                    "anthropic/claude-3.7-sonnet",
+                    "google/gemini-2.5-pro",
+                    "meta-llama/llama-3.1-70b-instruct",
                 ],
                 timeout_seconds=180,
             ),
             "reasoning": TierPoolConfig(
                 models=[
-                    "openai/gpt-5.4-pro",
-                    "anthropic/claude-opus-4.6",
-                    "google/gemini-3.1-pro-preview",
-                    "deepseek/deepseek-v3.2-speciale",
+                    "openai/gpt-4o",
+                    "anthropic/claude-3.7-sonnet",
+                    "google/gemini-2.5-pro",
+                    "meta-llama/llama-3.1-70b-instruct",
                 ],
                 timeout_seconds=600,
             ),
             # ADR-027: Frontier tier for cutting-edge/preview models
             "frontier": TierPoolConfig(
                 models=[
-                    "openai/gpt-5.4-pro",
-                    "anthropic/claude-opus-4.6",
-                    "google/gemini-3.1-pro-preview",
-                    "deepseek/deepseek-v3.2-speciale",
+                    "openai/gpt-4o",
+                    "anthropic/claude-3.7-sonnet",
+                    "google/gemini-2.5-pro",
+                    "meta-llama/llama-3.1-70b-instruct",
                 ],
                 timeout_seconds=600,
             ),
@@ -822,7 +842,9 @@ class CacheConfig(BaseModel):
         ge=0,
         alias="LLM_COUNCIL_CACHE_TTL",
     )
-    directory: Path = Field(default_factory=lambda: Path.home() / ".cache" / "llm-council")
+    directory: Path = Field(
+        default_factory=lambda: _get_safe_home_directory() / ".cache" / "llm-council"
+    )
 
 
 class TelemetryConfig(BaseModel):
@@ -1082,7 +1104,7 @@ def load_config(
         return UnifiedConfig()
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             raw_config = yaml.safe_load(f)
 
         if raw_config is None:
@@ -1128,7 +1150,7 @@ def _find_config_file() -> Optional[Path]:
         return cwd_path
 
     # Check home directory
-    home_path = Path.home() / ".config" / "llm-council" / "llm_council.yaml"
+    home_path = _get_safe_home_directory() / ".config" / "llm-council" / "llm_council.yaml"
     if home_path.exists():
         return home_path
 

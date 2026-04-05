@@ -172,7 +172,7 @@ class TestRailwayTemplate:
         if not railway_json.exists():
             pytest.skip("railway.json not yet created")
 
-        content = railway_json.read_text()
+        content = railway_json.read_text(encoding="utf-8")
         try:
             data = json.loads(content)
             assert isinstance(data, dict), "railway.json should be a JSON object"
@@ -185,7 +185,7 @@ class TestRailwayTemplate:
         if not railway_json.exists():
             pytest.skip("railway.json not yet created")
 
-        data = json.loads(railway_json.read_text())
+        data = json.loads(railway_json.read_text(encoding="utf-8"))
 
         assert "build" in data, "railway.json missing 'build' section"
         assert "deploy" in data, "railway.json missing 'deploy' section"
@@ -208,7 +208,7 @@ class TestRailwayTemplate:
         if not dockerfile.exists():
             pytest.skip("Dockerfile not yet created")
 
-        content = dockerfile.read_text()
+        content = dockerfile.read_text(encoding="utf-8")
 
         # Must use Python base image
         assert "FROM python:" in content, "Dockerfile should use Python base image"
@@ -223,9 +223,9 @@ class TestRailwayTemplate:
         assert "USER" in content, "Dockerfile should run as non-root user"
 
         # Must have HEALTHCHECK
-        assert (
-            "HEALTHCHECK" in content or "healthcheck" in content.lower()
-        ), "Dockerfile should include healthcheck"
+        assert "HEALTHCHECK" in content or "healthcheck" in content.lower(), (
+            "Dockerfile should include healthcheck"
+        )
 
 
 class TestRenderBlueprint:
@@ -242,7 +242,7 @@ class TestRenderBlueprint:
         if not render_yaml.exists():
             pytest.skip("render.yaml not yet created")
 
-        content = render_yaml.read_text()
+        content = render_yaml.read_text(encoding="utf-8")
         try:
             data = yaml.safe_load(content)
             assert isinstance(data, dict), "render.yaml should be a YAML object"
@@ -272,9 +272,9 @@ class TestRenderBlueprint:
 
         for service in services:
             if service.get("type") == "web":
-                assert (
-                    service.get("autoDeploy") is False
-                ), "Web service should have autoDeploy: false"
+                assert service.get("autoDeploy") is False, (
+                    "Web service should have autoDeploy: false"
+                )
 
     def test_render_yaml_has_health_check(self):
         """render.yaml should define health check."""
@@ -305,7 +305,7 @@ class TestDockerCompose:
         if not compose_file.exists():
             pytest.skip("docker-compose.yml not yet created")
 
-        content = compose_file.read_text()
+        content = compose_file.read_text(encoding="utf-8")
         try:
             data = yaml.safe_load(content)
             assert isinstance(data, dict), "docker-compose.yml should be a YAML object"
@@ -321,9 +321,9 @@ class TestDockerCompose:
         data = yaml.safe_load(compose_file.read_text())
 
         assert "services" in data, "docker-compose.yml missing 'services'"
-        assert (
-            "llm-council" in data["services"]
-        ), "docker-compose.yml should have 'llm-council' service"
+        assert "llm-council" in data["services"], (
+            "docker-compose.yml should have 'llm-council' service"
+        )
 
     def test_docker_compose_has_healthcheck(self):
         """docker-compose.yml llm-council service should have healthcheck."""
@@ -390,7 +390,7 @@ class TestReadmeDeployButtons:
         readme = PROJECT_ROOT / "README.md"
         assert readme.exists(), "README.md should exist"
 
-        content = readme.read_text().lower()
+        content = readme.read_text(encoding="utf-8").lower()
         assert "deploy" in content, "README.md should mention deployment"
 
     def test_readme_has_railway_button(self):
@@ -399,12 +399,12 @@ class TestReadmeDeployButtons:
         if not readme.exists():
             pytest.skip("README.md not found")
 
-        content = readme.read_text()
+        content = readme.read_text(encoding="utf-8")
 
         # Check for Railway button SVG or link
-        assert (
-            "railway.com" in content.lower() or "railway.app" in content.lower()
-        ), "README.md should include Railway deploy button"
+        assert "railway.com" in content.lower() or "railway.app" in content.lower(), (
+            "README.md should include Railway deploy button"
+        )
 
     def test_readme_has_render_button(self):
         """README.md should have Render deploy button."""
@@ -412,7 +412,7 @@ class TestReadmeDeployButtons:
         if not readme.exists():
             pytest.skip("README.md not found")
 
-        content = readme.read_text()
+        content = readme.read_text(encoding="utf-8")
 
         # Check for Render button SVG or link
         assert "render.com" in content.lower(), "README.md should include Render deploy button"
@@ -468,7 +468,7 @@ class TestBlogPost:
         if not blog_post.exists():
             pytest.skip("Blog post not yet created")
 
-        content = blog_post.read_text().lower()
+        content = blog_post.read_text(encoding="utf-8").lower()
 
         required_terms = [
             "railway",
@@ -486,7 +486,7 @@ class TestBlogPost:
         if not blog_post.exists():
             pytest.skip("Blog post not yet created")
 
-        content = blog_post.read_text()
+        content = blog_post.read_text(encoding="utf-8")
         assert "github.com/amiable-dev/llm-council" in content, "Blog post should include repo link"
 
 
@@ -498,7 +498,7 @@ class TestMkdocsNavigation:
         mkdocs_file = PROJECT_ROOT / "mkdocs.yml"
         assert mkdocs_file.exists(), "mkdocs.yml should exist"
 
-        data = yaml.safe_load(mkdocs_file.read_text())
+        data = yaml.safe_load(mkdocs_file.read_text(encoding="utf-8"))
         nav = data.get("nav", [])
 
         # Look for Deployment in nav
@@ -516,7 +516,7 @@ class TestMkdocsNavigation:
         mkdocs_file = PROJECT_ROOT / "mkdocs.yml"
         assert mkdocs_file.exists(), "mkdocs.yml should exist"
 
-        content = mkdocs_file.read_text()
-        assert (
-            "09-one-click-deployment" in content
-        ), "mkdocs.yml should reference one-click deployment blog post"
+        content = mkdocs_file.read_text(encoding="utf-8")
+        assert "09-one-click-deployment" in content, (
+            "mkdocs.yml should reference one-click deployment blog post"
+        )

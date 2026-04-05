@@ -68,7 +68,7 @@ class TestSecurityWorkflow:
         """Load security workflow configuration."""
         if not workflow_path.exists():
             pytest.skip("security.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return normalize_yaml_on_key(config)
 
@@ -80,7 +80,7 @@ class TestSecurityWorkflow:
         """Verify security.yml is valid YAML."""
         if not workflow_path.exists():
             pytest.skip("security.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             try:
                 yaml.safe_load(f)
             except yaml.YAMLError as e:
@@ -142,9 +142,9 @@ class TestSecurityWorkflow:
 
             secret_refs = re.findall(r"secrets\.(\w+)", job_yaml)
             non_github_secrets = [s for s in secret_refs if s != "GITHUB_TOKEN"]
-            assert (
-                len(non_github_secrets) == 0
-            ), f"Fork-compatible job {job_name} references secrets: {non_github_secrets}"
+            assert len(non_github_secrets) == 0, (
+                f"Fork-compatible job {job_name} references secrets: {non_github_secrets}"
+            )
 
     def test_security_workflow_actions_are_version_pinned(self, workflow_config: dict):
         """Verify all GitHub Actions are pinned to specific versions.
@@ -185,7 +185,7 @@ class TestSecurityWorkflowMasterJobs:
         """Load security workflow configuration."""
         if not workflow_path.exists():
             pytest.skip("security.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return normalize_yaml_on_key(config)
 
@@ -222,9 +222,9 @@ class TestSecurityWorkflowMasterJobs:
             # Must have condition limiting to push on master
             has_push_condition = "push" in condition
             has_master_condition = "refs/heads/master" in condition or "master" in condition
-            assert (
-                has_push_condition or has_master_condition
-            ), f"Job {job_name} should only run on master push, got: {condition}"
+            assert has_push_condition or has_master_condition, (
+                f"Job {job_name} should only run on master push, got: {condition}"
+            )
 
 
 # =============================================================================
@@ -246,7 +246,7 @@ class TestReleaseSecurityWorkflow:
         """Load release security workflow configuration."""
         if not workflow_path.exists():
             pytest.skip("release-security.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return normalize_yaml_on_key(config)
 
@@ -268,9 +268,9 @@ class TestReleaseSecurityWorkflow:
         """Verify workflow has required permissions for release attachment."""
         permissions = workflow_config.get("permissions", {})
         # Need write access to attach files to releases
-        assert (
-            permissions.get("contents") == "write"
-        ), "Workflow needs contents: write to attach files to releases"
+        assert permissions.get("contents") == "write", (
+            "Workflow needs contents: write to attach files to releases"
+        )
 
     def test_release_security_has_provenance_job(self, workflow_config: dict):
         """Verify workflow has SLSA provenance generation job."""
@@ -295,16 +295,16 @@ class TestReleaseSecurityWorkflow:
     def test_release_security_has_attestations_permission(self, workflow_config: dict):
         """Verify workflow has attestations: write for SLSA provenance."""
         permissions = workflow_config.get("permissions", {})
-        assert (
-            permissions.get("attestations") == "write"
-        ), "Workflow needs attestations: write for SLSA provenance"
+        assert permissions.get("attestations") == "write", (
+            "Workflow needs attestations: write for SLSA provenance"
+        )
 
     def test_release_security_has_id_token_permission(self, workflow_config: dict):
         """Verify workflow has id-token: write for Sigstore signing."""
         permissions = workflow_config.get("permissions", {})
-        assert (
-            permissions.get("id-token") == "write"
-        ), "Workflow needs id-token: write for Sigstore OIDC signing"
+        assert permissions.get("id-token") == "write", (
+            "Workflow needs id-token: write for Sigstore OIDC signing"
+        )
 
     def test_release_security_sbom_uses_correct_format_flag(self, workflow_config: dict):
         """Verify SBOM generation uses --output-format (not --format)."""
@@ -343,7 +343,7 @@ class TestCIWorkflowVersionPinning:
         """Load CI workflow configuration."""
         if not workflow_path.exists():
             pytest.skip("ci.yml not found")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return normalize_yaml_on_key(config)
 
@@ -382,7 +382,7 @@ class TestDependencyReviewConfig:
         """Load dependency review configuration."""
         if not config_path.exists():
             pytest.skip("dependency-review-config.yml not yet created")
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     @pytest.fixture
@@ -395,7 +395,7 @@ class TestDependencyReviewConfig:
         """Load security workflow configuration."""
         if not workflow_path.exists():
             pytest.skip("security.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return normalize_yaml_on_key(config)
 
@@ -421,9 +421,9 @@ class TestDependencyReviewConfig:
 
         with_config = dep_review_step.get("with", {})
         config_file = with_config.get("config-file", "")
-        assert (
-            "dependency-review-config.yml" in config_file
-        ), "Workflow should reference dependency-review-config.yml"
+        assert "dependency-review-config.yml" in config_file, (
+            "Workflow should reference dependency-review-config.yml"
+        )
 
     def test_dependency_review_blocks_gpl(self, config: dict):
         """Verify Dependency Review blocks GPL licenses."""
@@ -443,9 +443,9 @@ class TestDependencyReviewConfig:
         """Verify SonarQube action is allowed despite LGPL-3.0 license."""
         allow_list = config.get("allow-dependencies-licenses", [])
         sonar_allowed = any("sonarqube-scan-action" in pkg for pkg in allow_list)
-        assert (
-            sonar_allowed
-        ), "SonarQube action should be allowed (build-time tool, not distributed)"
+        assert sonar_allowed, (
+            "SonarQube action should be allowed (build-time tool, not distributed)"
+        )
 
 
 # =============================================================================
@@ -467,7 +467,7 @@ class TestScorecardWorkflow:
         """Load scorecard workflow configuration."""
         if not workflow_path.exists():
             pytest.skip("scorecard.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         return normalize_yaml_on_key(config)
 
@@ -479,7 +479,7 @@ class TestScorecardWorkflow:
         """Verify scorecard.yml is valid YAML."""
         if not workflow_path.exists():
             pytest.skip("scorecard.yml not yet created")
-        with open(workflow_path) as f:
+        with open(workflow_path, encoding="utf-8") as f:
             try:
                 yaml.safe_load(f)
             except yaml.YAMLError as e:
@@ -546,12 +546,12 @@ class TestScorecardWorkflow:
         permissions = analysis.get("permissions", {})
 
         # Required for publishing results
-        assert (
-            permissions.get("security-events") == "write"
-        ), "Need security-events: write for SARIF upload"
-        assert (
-            permissions.get("id-token") == "write"
-        ), "Need id-token: write for OIDC token (publish_results)"
+        assert permissions.get("security-events") == "write", (
+            "Need security-events: write for SARIF upload"
+        )
+        assert permissions.get("id-token") == "write", (
+            "Need id-token: write for OIDC token (publish_results)"
+        )
 
     def test_scorecard_workflow_uploads_sarif(self, workflow_config: dict):
         """Verify workflow uploads SARIF to code-scanning."""
