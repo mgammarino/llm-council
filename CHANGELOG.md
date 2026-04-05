@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OpenRouter Gateway Observability** ([#2](https://github.com/mgammarino/llm-council/issues/2)) — Enhanced identification for outbound requests via `X-Title`, `HTTP-Referer`, and `X-Council-ID` headers. Synchronized model identifiers for OpenRouter gateway.
+
 ### Fixed
 
 - **Windows stability fix for skill callbacks** ([#1](https://github.com/mgammarino/llm-council/issues/1)) — Resolved an infinite retry loop that occurred when model skill outputs failed to produce a valid "verdict" string on Windows. Enforced terminal verdicts for malformed responses.
