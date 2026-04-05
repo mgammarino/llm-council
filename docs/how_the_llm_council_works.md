@@ -92,3 +92,8 @@ By using the `--details` flag (Terminal) or `include_details` (Claude), you can 
 *   **High-Stakes Decisions**: When you need a second (and third, and fourth) opinion before committing to a path.
 *   **Complex Debugging**: When different AIs have different specialized "knowledge" about a library or language.
 *   **Strategic Planning**: When you want to see a problem from multiple competitive perspectives (e.g., getting the "Anthropic view" and the "OpenAI view" simultaneously).
+
+---
+
+### 💡 Pro-Tip: Identifying a "Strong" Consensus
+When reviewing results, look for **Consensus Strength (CSS)** scores above **0.70**. This indicates that the models were in high agreement during the peer review stage, making the Chairman's synthesis highly reliable!
