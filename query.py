@@ -29,8 +29,21 @@ async def main():
         # stage1_results, stage2_results, stage3_result, metadata = await run_full_council(args.query)
         
         print("[*] Stage 1: Collecting initial opinions...")
-        # Actually calling run_full_council (v0.3.0+)
-        # Based on src/llm_council/__init__.py: run_full_council returns (stage1, stage2, stage3, metadata)
+        
+        # Load the configuration dynamically to get the models for the selected tier
+        from llm_council.unified_config import get_config
+        config = get_config()
+        
+        # Look up the model pool for the chosen confidence tier (e.g., 'high')
+        target_models = None
+        if args.confidence in config.tiers.pools:
+            target_models = config.tiers.pools[args.confidence].models
+            
+        # VERY IMPORTANT: The open-source project is mid-migration.
+        # We must overwrite the absolute base default models here so the engine uses our tier's list.
+        if target_models:
+            config.council.models = target_models
+            
         stage1, stage2, stage3, metadata = await run_full_council(args.query)
         
         print("[*] Stage 2: Peer reviewing and ranking...")
