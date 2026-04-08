@@ -264,7 +264,7 @@ ProgressCallback = Callable[[int, int, str], Awaitable[None]]
 
 async def stage1_collect_responses(
     user_query: str, council_id: Optional[str] = None
-) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
     """
     Stage 1: Collect individual responses from all council models.
 
@@ -272,18 +272,21 @@ async def stage1_collect_responses(
         user_query: The user's question
 
     Returns:
-        Tuple of (results list, usage dict with token counts)
+        Tuple of (results list, usage dict with token counts and cost)
     """
     messages = [{"role": "user", "content": user_query}]
 
     # Query all models in parallel
-    responses = await query_models_parallel(
-        _get_council_models(), messages, council_id=council_id
-    )
+    responses = await query_models_parallel(_get_council_models(), messages, council_id=council_id)
 
     # Format results and aggregate usage
     stage1_results = []
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    total_usage = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
 
     for model, response in responses.items():
         if response is not None:  # Only include successful responses
@@ -293,6 +296,7 @@ async def stage1_collect_responses(
             total_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
             total_usage["completion_tokens"] += usage.get("completion_tokens", 0)
             total_usage["total_tokens"] += usage.get("total_tokens", 0)
+            total_usage["total_cost"] += usage.get("total_cost", 0.0)
 
     return stage1_results, total_usage
 
@@ -304,7 +308,7 @@ async def stage1_collect_responses_with_status(
     shared_raw_responses: Optional[Dict[str, Dict[str, Any]]] = None,
     models: Optional[List[str]] = None,
     session_id: Optional[str] = None,
-) -> Tuple[List[Dict[str, Any]], Dict[str, int], Dict[str, Dict[str, Any]]]:
+) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Dict[str, Any]]]:
     """
     Stage 1: Collect individual responses with per-model status tracking (ADR-012).
 
@@ -344,7 +348,12 @@ async def stage1_collect_responses_with_status(
 
     # Format results and aggregate usage
     stage1_results = []
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    total_usage = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
     model_statuses: Dict[str, Dict[str, Any]] = {}
 
     for model, response in responses.items():
@@ -370,6 +379,7 @@ async def stage1_collect_responses_with_status(
             total_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
             total_usage["completion_tokens"] += usage.get("completion_tokens", 0)
             total_usage["total_tokens"] += usage.get("total_tokens", 0)
+            total_usage["total_cost"] += usage.get("total_cost", 0.0)
 
     return stage1_results, total_usage, model_statuses
 
@@ -412,7 +422,7 @@ async def quick_synthesis(
     user_query: str,
     model_responses: Dict[str, Dict[str, Any]],
     council_id: Optional[str] = None,
-) -> Tuple[str, Dict[str, int]]:
+) -> Tuple[str, Dict[str, float]]:
     """
     Generate a quick synthesis from partial responses (ADR-012 fallback).
 
@@ -434,7 +444,12 @@ async def quick_synthesis(
     }
 
     if not successful:
-        return "Error: No model responses available for synthesis.", {}
+        return "Error: No model responses available for synthesis.", {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0,
+            "total_tokens": 0.0,
+            "total_cost": 0.0,
+        }
 
     # Build context from available responses
     responses_text = "\n\n".join(
@@ -463,15 +478,42 @@ and highlight any important insights. Be clear that this is based on partial dat
         council_id=council_id,
     )
 
-    usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    usage = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
 
     if response is None:
         # Chairman failed - return best available response
         best_response = list(successful.values())[0].get("response", "")
         return f"(Fallback - single model response)\n\n{best_response}", usage
 
-    usage = response.get("usage", {})
+    response_usage = response.get("usage", {})
+    usage["prompt_tokens"] = response_usage.get("prompt_tokens", 0.0)
+    usage["completion_tokens"] = response_usage.get("completion_tokens", 0.0)
+    usage["total_tokens"] = response_usage.get("total_tokens", 0.0)
+    usage["total_cost"] = response_usage.get("total_cost", 0.0)
     return response.get("content", ""), usage
+
+
+def _aggregate_stage_usage(
+    usage_info: Dict[str, Dict[str, float]],
+) -> Dict[str, Any]:
+    """Aggregate per-stage usage dicts into a single totals dict.
+
+    Extracted to eliminate duplication between the happy-path and
+    timeout-path aggregation blocks in run_council_with_fallback.
+    """
+    stages = list(usage_info.values())
+    return {
+        "prompt_tokens": sum(u.get("prompt_tokens", 0.0) for u in stages),
+        "completion_tokens": sum(u.get("completion_tokens", 0.0) for u in stages),
+        "total_tokens": sum(u.get("total_tokens", 0.0) for u in stages),
+        "total_cost": sum(u.get("total_cost", 0.0) for u in stages),
+        "stages": usage_info,
+    }
 
 
 async def run_council_with_fallback(
@@ -598,6 +640,38 @@ async def run_council_with_fallback(
             "triage": triage_metadata,
             "webhooks_enabled": webhook_config is not None,
             "include_dissent": include_dissent,  # ADR-025b: Dissent extraction enabled
+            "usage": {
+                "prompt_tokens": 0.0,
+                "completion_tokens": 0.0,
+                "total_tokens": 0.0,
+                "total_cost": 0.0,
+                "stages": {
+                    "stage1": {
+                        "prompt_tokens": 0.0,
+                        "completion_tokens": 0.0,
+                        "total_tokens": 0.0,
+                        "total_cost": 0.0,
+                    },
+                    "stage1_5": {
+                        "prompt_tokens": 0.0,
+                        "completion_tokens": 0.0,
+                        "total_tokens": 0.0,
+                        "total_cost": 0.0,
+                    },
+                    "stage2": {
+                        "prompt_tokens": 0.0,
+                        "completion_tokens": 0.0,
+                        "total_tokens": 0.0,
+                        "total_cost": 0.0,
+                    },
+                    "stage3": {
+                        "prompt_tokens": 0.0,
+                        "completion_tokens": 0.0,
+                        "total_tokens": 0.0,
+                        "total_cost": 0.0,
+                    },
+                },
+            },
         },
     }
 
@@ -645,9 +719,38 @@ async def run_council_with_fallback(
     # Generate session_id early to share between bias persistence and telemetry
     session_id = str(uuid.uuid4())
 
+    # Track per-stage usage
+    usage_info = {
+        "stage1": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0,
+            "total_tokens": 0.0,
+            "total_cost": 0.0,
+        },
+        "stage1_5": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0,
+            "total_tokens": 0.0,
+            "total_cost": 0.0,
+        },
+        "stage2": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0,
+            "total_tokens": 0.0,
+            "total_cost": 0.0,
+        },
+        "stage3": {
+            "prompt_tokens": 0.0,
+            "completion_tokens": 0.0,
+            "total_tokens": 0.0,
+            "total_cost": 0.0,
+        },
+    }
+
     # Inner coroutine for the main council work (allows timeout wrapping)
     async def run_council_pipeline() -> Dict[str, Any]:
         nonlocal result
+        nonlocal usage_info
 
         # Stage 1 with status tracking
         async def stage1_progress(completed, total, msg):
@@ -661,6 +764,7 @@ async def run_council_with_fallback(
             models=council_models,  # ADR-022: Use tier-appropriate models
             session_id=session_id,  # Traceable ID (BUG-002)
         )
+        usage_info["stage1"] = stage1_usage
 
         result["model_responses"] = model_statuses
         result["metadata"]["completed_models"] = len(stage1_results)
@@ -694,12 +798,14 @@ async def run_council_with_fallback(
         responses_for_review, stage1_5_usage = await stage1_5_normalize_styles(
             stage1_results, session_id=session_id
         )
+        usage_info["stage1_5"] = stage1_5_usage
 
         # Stage 2: Peer review
         await report_progress(requested_models + 1, total_steps, "Stage 2: Peer review...")
         stage2_results, label_to_model, stage2_usage = await stage2_collect_rankings(
             user_query, responses_for_review, session_id=session_id
         )
+        usage_info["stage2"] = stage2_usage
 
         # ADR-027: Track shadow votes for frontier tier
         track_shadows = should_track_shadow_votes(tier_contract)
@@ -765,6 +871,7 @@ async def run_council_with_fallback(
             verdict_type=effective_verdict_type,
             session_id=session_id,
         )
+        usage_info["stage3"] = stage3_usage
 
         # If we escalated due to deadlock, update the verdict result
         if deadlock_detected and verdict_result is not None:
@@ -801,6 +908,8 @@ async def run_council_with_fallback(
             result["metadata"]["warning"] = warning
             result["metadata"]["status"] = "partial"
 
+        result["metadata"]["usage"] = _aggregate_stage_usage(usage_info)
+
         # Emit telemetry event (fire-and-forget)
         telemetry = get_telemetry()
         if telemetry.is_enabled():
@@ -834,6 +943,7 @@ async def run_council_with_fallback(
             "synthesis_type": result["metadata"].get("synthesis_type"),
             "model_count": len(result.get("model_responses", {})),
             "tier": tier_contract.tier if tier_contract else None,
+            "usage": result["metadata"]["usage"],
         }
         emit_layer_event(
             LayerEventType.L3_COUNCIL_COMPLETE,
@@ -896,7 +1006,10 @@ async def run_council_with_fallback(
             # We have some responses - do quick synthesis
             await report_progress(total_steps - 1, total_steps, "Timeout - quick synthesis...")
 
-            synthesis, usage = await quick_synthesis(user_query, result["model_responses"], council_id=session_id)
+            synthesis, stage3_usage = await quick_synthesis(
+                user_query, result["model_responses"], council_id=session_id
+            )
+            usage_info["stage3"] = stage3_usage
             result["synthesis"] = synthesis
             result["metadata"]["synthesis_type"] = (
                 "partial" if len(successful_responses) > 1 else "stage1_only"
@@ -913,6 +1026,8 @@ async def run_council_with_fallback(
                 result["model_responses"], requested_models
             )
 
+        result["metadata"]["usage"] = _aggregate_stage_usage(usage_info)
+
         # ADR-024: Emit L3 Complete Event (timeout/partial)
         emit_layer_event(
             LayerEventType.L3_COUNCIL_COMPLETE,
@@ -922,6 +1037,7 @@ async def run_council_with_fallback(
                 "model_count": len(result.get("model_responses", {})),
                 "tier": tier_contract.tier if tier_contract else None,
                 "timeout": True,
+                "usage": result["metadata"]["usage"],
             },
             layer_from="L3",
             layer_to="L2",
@@ -1026,7 +1142,7 @@ def should_normalize_styles(responses: List[str]) -> bool:
 
 async def stage1_5_normalize_styles(
     stage1_results: List[Dict[str, Any]], session_id: Optional[str] = None
-) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
     """
     Stage 1.5: Normalize response styles to reduce stylistic fingerprinting.
 
@@ -1045,7 +1161,12 @@ async def stage1_5_normalize_styles(
     Returns:
         Tuple of (normalized results, usage dict with token counts)
     """
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    total_usage = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
 
     # Handle different normalization modes
     if _get_style_normalization() == "auto":
@@ -1090,9 +1211,10 @@ Rewritten text:"""
             )
             # Aggregate usage
             usage = response.get("usage", {})
-            total_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
-            total_usage["completion_tokens"] += usage.get("completion_tokens", 0)
-            total_usage["total_tokens"] += usage.get("total_tokens", 0)
+            total_usage["prompt_tokens"] += usage.get("prompt_tokens", 0.0)
+            total_usage["completion_tokens"] += usage.get("completion_tokens", 0.0)
+            total_usage["total_tokens"] += usage.get("total_tokens", 0.0)
+            total_usage["total_cost"] += usage.get("total_cost", 0.0)
         else:
             # If normalization fails, use original
             normalized_results.append(
@@ -1113,7 +1235,7 @@ async def stage2_collect_rankings(
     models: Optional[List[str]] = None,
     on_progress: Optional[Callable[[int, int, str], Awaitable[None]]] = None,
     session_id: Optional[str] = None,
-) -> Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]]:
+) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], Dict[str, float]]:
     """
     Stage 2: Each model ranks the anonymized responses.
 
@@ -1326,7 +1448,12 @@ Now provide your evaluation and ranking:"""
 
     # Format results and aggregate usage - include reviewer model for self-vote exclusion
     stage2_results = []
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    total_usage = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
 
     for model, response in responses.items():
         if response is not None:
@@ -1378,9 +1505,10 @@ Now provide your evaluation and ranking:"""
             )
             # Aggregate usage
             usage = response.get("usage", {})
-            total_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
-            total_usage["completion_tokens"] += usage.get("completion_tokens", 0)
-            total_usage["total_tokens"] += usage.get("total_tokens", 0)
+            total_usage["prompt_tokens"] += usage.get("prompt_tokens", 0.0)
+            total_usage["completion_tokens"] += usage.get("completion_tokens", 0.0)
+            total_usage["total_tokens"] += usage.get("total_tokens", 0.0)
+            total_usage["total_cost"] += usage.get("total_cost", 0.0)
 
     return stage2_results, label_to_model, total_usage
 
@@ -1393,7 +1521,7 @@ async def stage3_synthesize_final(
     verdict_type: VerdictType = VerdictType.SYNTHESIS,
     timeout: float = 120.0,
     session_id: Optional[str] = None,
-) -> Tuple[Dict[str, Any], Dict[str, int], Optional[VerdictResult]]:
+) -> Tuple[Dict[str, Any], Dict[str, float], Optional[VerdictResult]]:
     """
     Stage 3: Chairman synthesizes final response.
 
@@ -1518,7 +1646,12 @@ STAGE 2 - Peer Rankings:
         council_id=session_id,
     )
 
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    total_usage = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
 
     if response is None:
         # Fallback if chairman fails
@@ -1533,9 +1666,10 @@ STAGE 2 - Peer Rankings:
 
     # Capture usage
     usage = response.get("usage", {})
-    total_usage["prompt_tokens"] = usage.get("prompt_tokens", 0)
-    total_usage["completion_tokens"] = usage.get("completion_tokens", 0)
-    total_usage["total_tokens"] = usage.get("total_tokens", 0)
+    total_usage["prompt_tokens"] = usage.get("prompt_tokens", 0.0)
+    total_usage["completion_tokens"] = usage.get("completion_tokens", 0.0)
+    total_usage["total_tokens"] = usage.get("total_tokens", 0.0)
+    total_usage["total_cost"] = usage.get("total_cost", 0.0)
 
     response_content = response.get("content", "")
 
@@ -1722,7 +1856,7 @@ def parse_ranking_from_text(ranking_text: str) -> Dict[str, Any]:
 
 def calculate_aggregate_rankings(
     stage2_results: List[Dict[str, Any]],
-    label_to_model: Dict[str, str],
+    label_to_model: Dict[str, Dict[str, Any]],
     voting_authorities: Optional[Dict[str, "VotingAuthority"]] = None,
     return_shadow_votes: bool = False,
 ) -> List[Dict[str, Any]]:
@@ -1959,9 +2093,7 @@ def emit_shadow_vote_events(
         )
 
 
-async def generate_conversation_title(
-    user_query: str, council_id: Optional[str] = None
-) -> str:
+async def generate_conversation_title(user_query: str, council_id: Optional[str] = None) -> str:
     """
     Generate a short title for a conversation based on the first user message.
 
@@ -2070,11 +2202,11 @@ async def run_full_council(
             )
 
     # Initialize usage tracking
-    total_usage = {
-        "stage1": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        "stage1_5": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        "stage2": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        "stage3": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    total_usage: Dict[str, Dict[str, float]] = {
+        "stage1": {"prompt_tokens": 0.0, "completion_tokens": 0.0, "total_tokens": 0.0, "total_cost": 0.0},
+        "stage1_5": {"prompt_tokens": 0.0, "completion_tokens": 0.0, "total_tokens": 0.0, "total_cost": 0.0},
+        "stage2": {"prompt_tokens": 0.0, "completion_tokens": 0.0, "total_tokens": 0.0, "total_cost": 0.0},
+        "stage3": {"prompt_tokens": 0.0, "completion_tokens": 0.0, "total_tokens": 0.0, "total_cost": 0.0},
     }
 
     # Generate session_id here to propagate through old pipeline
@@ -2114,15 +2246,27 @@ async def run_full_council(
 
     # Handle small councils (N ≤ 2) - peer review is unstable or meaningless
     degraded_mode = None
-    stage2_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    stage1_5_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    stage2_usage: Dict[str, float] = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
+    stage1_5_usage: Dict[str, float] = {
+        "prompt_tokens": 0.0,
+        "completion_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_cost": 0.0,
+    }
 
     if num_responses == 1:
         # Single model: skip peer review entirely
         degraded_mode = "single_model"
-        stage2_results = []
+        stage2_results: List[Dict[str, Any]] = []
         # Enhanced format (v0.3.0+) with explicit display_index
-        label_to_model = {"Response A": {"model": stage1_results[0]["model"], "display_index": 0}}
+        label_to_model: Dict[str, Dict[str, Any]] = {
+            "Response A": {"model": stage1_results[0]["model"], "display_index": 0}
+        }
         aggregate_rankings = [
             {
                 "model": stage1_results[0]["model"],
@@ -2137,7 +2281,9 @@ async def run_full_council(
         # Two models: peer review gives only 1 vote each (unstable)
         # Proceed but mark as degraded
         degraded_mode = "two_models"
-        responses_for_review, stage1_5_usage = await stage1_5_normalize_styles(stage1_results, session_id=session_id)
+        responses_for_review, stage1_5_usage = await stage1_5_normalize_styles(
+            stage1_results, session_id=session_id
+        )
         stage2_results, label_to_model, stage2_usage = await stage2_collect_rankings(
             user_query, responses_for_review, session_id=session_id
         )
@@ -2147,7 +2293,9 @@ async def run_full_council(
             r["note"] = "Two-model council - rankings based on single vote"
     else:
         # Normal flow (N ≥ 3)
-        responses_for_review, stage1_5_usage = await stage1_5_normalize_styles(stage1_results, session_id=session_id)
+        responses_for_review, stage1_5_usage = await stage1_5_normalize_styles(
+            stage1_results, session_id=session_id
+        )
         stage2_results, label_to_model, stage2_usage = await stage2_collect_rankings(
             user_query, responses_for_review, session_id=session_id
         )

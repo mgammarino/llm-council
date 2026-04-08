@@ -81,6 +81,7 @@ def _gateway_response_to_dict(response) -> Dict[str, Any]:
                 "prompt_tokens": response.usage.prompt_tokens,
                 "completion_tokens": response.usage.completion_tokens,
                 "total_tokens": response.usage.total_tokens,
+                "total_cost": response.usage.total_cost,
             }
 
     if response.error:
@@ -255,6 +256,7 @@ async def query_models_parallel(
                         if response.usage
                         else 0,
                         "total_tokens": response.usage.total_tokens if response.usage else 0,
+                        "total_cost": response.usage.total_cost if response.usage else 0.0,
                     },
                 }
             else:

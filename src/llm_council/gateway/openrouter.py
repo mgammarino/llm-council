@@ -265,6 +265,7 @@ class OpenRouterGateway(BaseRouter):
                         "prompt_tokens": usage.get("prompt_tokens", 0),
                         "completion_tokens": usage.get("completion_tokens", 0),
                         "total_tokens": usage.get("total_tokens", 0),
+                        "total_cost": usage.get("total_cost", 0.0),
                     },
                 }
 
@@ -317,6 +318,7 @@ class OpenRouterGateway(BaseRouter):
                 prompt_tokens=usage_data.get("prompt_tokens", 0),
                 completion_tokens=usage_data.get("completion_tokens", 0),
                 total_tokens=usage_data.get("total_tokens", 0),
+                total_cost=usage_data.get("total_cost", 0.0),
             )
 
         return GatewayResponse(

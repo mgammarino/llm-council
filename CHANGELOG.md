@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.24.34] - 2026-03-12
+### Added
+
+- **API Cost Tracking**: Integrated end-to-end API cost tracking and reporting (`total_cost`) from gateway to final council execution metadata.
+- **Cost Analytics**: Added precise token and float-based cost aggregation via `_aggregate_stage_usage` across Phase 1, 1.5, 2, and 3 orchestration steps.
 
 ### Fixed
 
 - **Concurrent verify shotgunning** ([#327](https://github.com/amiable-dev/llm-council/issues/327)) — agents fired 4 verify calls within 15 seconds with progressively fewer files, overwhelming the MCP server. Replaced "Handling Verdicts" with stricter "Rules" section: one call at a time, one call per commit, no scope-reduction retries.
+- **Trio Backend Test Compatibility**: Safely skipped `trio` test execution for `run_council_with_fallback` using parameterized `anyio_backend` (asyncio-coupled).
 
 ## [0.24.33] - 2026-03-12
 
