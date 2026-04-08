@@ -145,6 +145,7 @@ async def query_model(
                     "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                     "completion_tokens": response.usage.completion_tokens if response.usage else 0,
                     "total_tokens": response.usage.total_tokens if response.usage else 0,
+                    "total_cost": response.usage.total_cost if response.usage else 0.0,
                 },
             }
         return None

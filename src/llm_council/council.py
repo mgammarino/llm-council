@@ -2359,6 +2359,7 @@ async def run_full_council(
         "prompt_tokens": sum(s["prompt_tokens"] for s in total_usage.values()),
         "completion_tokens": sum(s["completion_tokens"] for s in total_usage.values()),
         "total_tokens": sum(s["total_tokens"] for s in total_usage.values()),
+        "total_cost": sum(s["total_cost"] for s in total_usage.values()),
     }
 
     # Collect abstention info and score/rank mismatches from Stage 2
