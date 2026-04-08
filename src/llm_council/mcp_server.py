@@ -269,6 +269,19 @@ async def consult_council(
         if alerts:
             result += f"\n**Alerts**: {', '.join(alerts)}\n"
 
+    # Add usage and cost info (ADR-022)
+    usage = metadata.get("usage", {})
+    if usage:
+        # Handle both success path (nested) and timeout path (flat)
+        total_data = usage.get("total", usage)
+        total_cost = total_data.get("total_cost", 0.0)
+        total_tokens = int(total_data.get("total_tokens", 0))
+        
+        if total_tokens > 0 or total_cost > 0:
+            result += f"\n### Usage & Cost\n"
+            result += f"- **Total Tokens**: {total_tokens:,}\n"
+            result += f"- **Total Cost**: ${total_cost:.6f} USD\n"
+
     if include_details:
         result += "\n\n### Council Details\n"
 
