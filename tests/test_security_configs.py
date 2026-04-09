@@ -60,7 +60,7 @@ class TestDependabotConfig:
         """Load dependabot configuration."""
         if not dependabot_path.exists():
             pytest.skip("dependabot.yml not yet created")
-        with open(dependabot_path) as f:
+        with open(dependabot_path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def test_dependabot_config_exists(self, dependabot_path: Path):
@@ -72,7 +72,7 @@ class TestDependabotConfig:
         """Verify dependabot.yml is valid YAML."""
         if not dependabot_path.exists():
             pytest.skip("dependabot.yml not yet created")
-        with open(dependabot_path) as f:
+        with open(dependabot_path, encoding="utf-8") as f:
             try:
                 yaml.safe_load(f)
             except yaml.YAMLError as e:
@@ -195,7 +195,7 @@ class TestPreCommitConfig:
         """Load pre-commit configuration."""
         if not pre_commit_path.exists():
             pytest.skip(".pre-commit-config.yaml not yet created")
-        with open(pre_commit_path) as f:
+        with open(pre_commit_path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def test_pre_commit_config_exists(self, pre_commit_path: Path):
@@ -263,7 +263,7 @@ class TestSemgrepRules:
         if not semgrep_dir.exists():
             pytest.skip(".semgrep/ directory not yet created")
         for rule_file in semgrep_dir.glob("*.yaml"):
-            with open(rule_file) as f:
+            with open(rule_file, encoding="utf-8") as f:
                 try:
                     yaml.safe_load(f)
                 except yaml.YAMLError as e:
@@ -274,7 +274,7 @@ class TestSemgrepRules:
         if not semgrep_dir.exists():
             pytest.skip(".semgrep/ directory not yet created")
         for rule_file in semgrep_dir.glob("*.yaml"):
-            with open(rule_file) as f:
+            with open(rule_file, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             assert "rules" in config, f"{rule_file.name} missing 'rules' key"
             for rule in config["rules"]:

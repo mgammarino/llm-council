@@ -277,7 +277,9 @@ async def stage1_collect_responses(
     messages = [{"role": "user", "content": user_query}]
 
     # Query all models in parallel
-    responses = await query_models_parallel(_get_council_models(), messages, council_id=council_id)
+    responses = await query_models_parallel(
+        _get_council_models(), messages, council_id=council_id
+    )
 
     # Format results and aggregate usage
     stage1_results = []
@@ -2105,7 +2107,9 @@ def emit_shadow_vote_events(
         )
 
 
-async def generate_conversation_title(user_query: str, council_id: Optional[str] = None) -> str:
+async def generate_conversation_title(
+    user_query: str, council_id: Optional[str] = None
+) -> str:
     """
     Generate a short title for a conversation based on the first user message.
 
