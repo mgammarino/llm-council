@@ -59,6 +59,14 @@ from .tier_contract import TierContract, create_tier_contract
 _request_api_key: ContextVar[Dict[str, str]] = ContextVar("request_api_key", default={})
 
 
+def _get_home_directory() -> Optional[Path]:
+    """Safely get home directory without crashing in restricted environments."""
+    try:
+        return Path.home()
+    except (RuntimeError, KeyError):
+        return None
+
+
 def set_request_api_key(provider: str, key: str) -> None:
     """Set a request-scoped API key for the current async context.
 
@@ -201,7 +209,7 @@ class TierConfig(BaseModel):
                     "openai/gpt-4o-mini",
                     "anthropic/claude-3-haiku",
                     "google/gemini-2.0-flash-lite-001",
-                    "meta-llama/llama-3.1-8b-instruct",
+                    "qwen/qwen-turbo",
                 ],
                 timeout_seconds=30,
                 peer_review="lightweight",
@@ -211,7 +219,7 @@ class TierConfig(BaseModel):
                     "openai/gpt-4o-mini",
                     "anthropic/claude-3.5-haiku",
                     "google/gemini-2.0-flash-001",
-                    "meta-llama/llama-3.1-70b-instruct",
+                    "qwen/qwen-turbo",
                 ],
                 timeout_seconds=90,
             ),
@@ -220,7 +228,7 @@ class TierConfig(BaseModel):
                     "openai/gpt-4o",
                     "anthropic/claude-3.7-sonnet",
                     "google/gemini-2.5-pro",
-                    "meta-llama/llama-3.1-70b-instruct",
+                    "qwen/qwen-plus",
                 ],
                 timeout_seconds=180,
             ),
@@ -229,7 +237,7 @@ class TierConfig(BaseModel):
                     "openai/gpt-4o",
                     "anthropic/claude-3.7-sonnet",
                     "google/gemini-2.5-pro",
-                    "meta-llama/llama-3.1-70b-instruct",
+                    "qwen/qwen-plus",
                 ],
                 timeout_seconds=600,
             ),
@@ -239,7 +247,7 @@ class TierConfig(BaseModel):
                     "openai/gpt-4o",
                     "anthropic/claude-3.7-sonnet",
                     "google/gemini-2.5-pro",
-                    "meta-llama/llama-3.1-70b-instruct",
+                    "qwen/qwen-plus",
                 ],
                 timeout_seconds=600,
             ),
@@ -743,7 +751,7 @@ class CouncilConfig(BaseModel):
             "openai/gpt-5.4",
             "google/gemini-3.1-pro-preview",
             "anthropic/claude-opus-4.6",
-            "deepseek/deepseek-v3.2-speciale",
+            "qwen/qwen-plus",
         ],
         alias="LLM_COUNCIL_MODELS",
     )

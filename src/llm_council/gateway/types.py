@@ -47,6 +47,7 @@ class UsageInfo:
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    total_cost: float = 0.0
 
 
 @dataclass

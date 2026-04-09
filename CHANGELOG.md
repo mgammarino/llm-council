@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **API Cost Tracking**: Integrated end-to-end API cost tracking and reporting (`total_cost`) from gateway to final council execution metadata.
+- **Cost Analytics**: Added precise token and float-based cost aggregation via `_aggregate_stage_usage` across Phase 1, 1.5, 2, and 3 orchestration steps.
+- **MCP Cost Transparency**: Enhanced the `consult_council` tool output to include a per-stage cost breakdown and detailed model rankings (including rank, Borda, and average scores).
 - **OpenRouter Gateway Observability** ([#2](https://github.com/mgammarino/llm-council/issues/2)) — Enhanced identification for outbound requests via `X-Title`, `HTTP-Referer`, and `X-Council-ID` headers. Synchronized model identifiers for OpenRouter gateway.
 - **OpenRouter Traceability & Session ID propagation** ([#10](https://github.com/mgammarino/llm-council/issues/10)) — Implemented end-to-end request tracing via `X-Council-ID` header. Generated unique `session_id` at the orchestrator level (both modern and legacy versions) and propagated it through all internal stages and gateway layers.
 - **Claude Desktop Integration Guide** ([#4](https://github.com/mgammarino/llm-council/issues/4)) — Documented the Windows-specific MCP bridge (`run_mcp.bat`) for stable operation with the Claude Desktop UI.
@@ -23,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Concurrent verify shotgunning** ([#327](https://github.com/amiable-dev/llm-council/issues/327)) — agents fired 4 verify calls within 15 seconds with progressively fewer files, overwhelming the MCP server. Replaced "Handling Verdicts" with stricter "Rules" section: one call at a time, one call per commit, no scope-reduction retries.
+- **Trio Backend Test Compatibility**: Safely skipped `trio` test execution for `run_council_with_fallback` using parameterized `anyio_backend` (asyncio-coupled).
+- **Usage Tracking on Timeout**: Fixed a bug where Stage 1 costs were dropped in the MCP output when a global timeout occurred; Stage 1 usage is now reconstructed from partial responses.
+
+### Changed
+
+- **Model Reliability Refactor (DeepSeek → Qwen)**: Replaced unstable DeepSeek models with Qwen alternatives across all tiers, specialists, and registries to address timeout issues.
+  - Updated `quick` tier to use `qwen/qwen-turbo`.
+  - Updated `reasoning` and `code` specialists to use `qwen/qwq-32b-preview` and `qwen/qwen-2.5-coder-32b-instruct`.
+  - Updated selection heuristics to correctly score and prioritize the Qwen model family.
 
 ## [0.24.33] - 2026-03-12
 
