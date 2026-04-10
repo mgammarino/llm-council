@@ -153,8 +153,8 @@ class TestTierContractTimeoutsUsed:
             await consult_council("test query", confidence="quick")
 
             call_kwargs = mock_council.call_args.kwargs
-            # synthesis_deadline should match tier total timeout
-            assert call_kwargs["synthesis_deadline"] == quick_timeout["total"]
+            # verify that the contract has the correct deadline
+            assert call_kwargs["tier_contract"].deadline_ms == quick_timeout["total"] * 1000
 
     @pytest.mark.asyncio
     async def test_reasoning_tier_uses_reasoning_timeout(self):
@@ -174,8 +174,8 @@ class TestTierContractTimeoutsUsed:
             await consult_council("test query", confidence="reasoning")
 
             call_kwargs = mock_council.call_args.kwargs
-            # synthesis_deadline should match tier total timeout
-            assert call_kwargs["synthesis_deadline"] == reasoning_timeout["total"]
+            # verify that the contract has the correct deadline
+            assert call_kwargs["tier_contract"].deadline_ms == reasoning_timeout["total"] * 1000
 
 
 class TestResultIncludesTierInfo:

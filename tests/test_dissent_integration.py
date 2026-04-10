@@ -8,10 +8,12 @@ async def test_dissent_metadata_integration():
     """Verify that include_dissent correctly populates metadata['dissent']."""
 
     user_query = "Test query"
-    mock_stage1 = [{"model": "m1", "response": "resp1"}]
+    mock_stage1 = [
+        {"model": "m1", "response": "resp1"},
+        {"model": "m2", "response": "resp2"}
+    ]
     mock_stage2 = [{"model": "m2", "response": "resp2"}]
     mock_stage3 = {"response": "synthesis"}
-    mock_metadata = {"dissent": "This is a minority opinion.", "aggregate_rankings": []}
 
     # We patch run_full_council because we want to test that query.py
     # would receive and display this metadata.
@@ -21,7 +23,7 @@ async def test_dissent_metadata_integration():
 
     with (
         patch(
-            "llm_council.council.stage1_collect_responses_with_status", new_callable=AsyncMock
+            "llm_council.council.stage1_collect_responses", new_callable=AsyncMock
         ) as m1,
         patch("llm_council.council.stage2_collect_rankings", new_callable=AsyncMock) as m2,
         patch("llm_council.council.stage3_synthesize_final", new_callable=AsyncMock) as m3,
@@ -30,7 +32,7 @@ async def test_dissent_metadata_integration():
             return_value="This is a minority opinion.",
         ),
     ):
-        m1.return_value = (mock_stage1, mock_usage, {})
+        m1.return_value = (mock_stage1, mock_usage)
         m2.return_value = (mock_stage2, {}, mock_usage)
         m3.return_value = (mock_stage3, mock_usage, None)
 

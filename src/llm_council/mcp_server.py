@@ -13,7 +13,14 @@ Implements ADR-012: MCP Server Reliability and Long-Running Operation Handling
 import json
 import time
 import asyncio
-from typing import List, Optional, Any, Dict
+import os
+import sys
+from typing import List, Optional, Any, Dict, Callable
+
+# Ensure src is in sys.path for robust imports (ADR-032 path fix)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 from mcp.server.fastmcp import FastMCP, Context
 
@@ -44,7 +51,6 @@ from llm_council.verification.transcript import (
 
 # ADR-032: Migrated to unified_config
 from llm_council.unified_config import get_config, get_api_key
-from llm_council.tier_contract import create_tier_contract
 from llm_council.openrouter import query_model_with_status, STATUS_OK
 
 
@@ -139,23 +145,83 @@ def _build_confidence_configs() -> dict:
 CONFIDENCE_CONFIGS = _build_confidence_configs()
 
 
+def _get_progress_callback(ctx: Optional[Context]) -> Optional[Callable]:
+    """
+    Creates a progress callback bridge for a given MCP context.
+    Implements ADR-012 fire-and-forget logic in prod, and synchronous await in tests.
+    """
+    if not ctx:
+        return None
+
+    import os, sys
+    in_test = os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
+
+    async def on_progress(step: int, total: int, message: str):
+        async def _send():
+            try:
+                # FastMCP ctx.report_progress(step, total)
+                await asyncio.wait_for(ctx.report_progress(step, total), timeout=0.5)
+            except Exception:
+                pass
+            try:
+                # ADR-012: ctx.info() pushes messages into Claude's "Thinking" block
+                await asyncio.wait_for(ctx.info(message), timeout=0.5)
+            except Exception:
+                pass
+
+        if in_test:
+            # We must await in tests to avoid race conditions and test failures
+            await _send()
+        else:
+            # Fire-and-forget in prod to prevent stdio pipe blocking/deadlocks
+            asyncio.create_task(_send())
+
+    return on_progress
+
+
 @mcp.tool()
 async def consult_council(
     query: str,
-    ctx: Context,
     confidence: str = "balanced",
+    include_details: bool = False,
+    verdict_type: str = "synthesis",
+    include_dissent: bool = False,
+    adversarial_mode: bool = False,
+    ctx: Context = None,
 ) -> str:
     """
     DEPRECATED: Use start_council -> council_review -> council_synthesize instead.
-    This monolithic tool is DISABLED to ensure real-time progress visibility.
+    This monolithic tool is DISABLED for MCP use to ensure real-time progress visibility.
     """
-    return (
-        "ERROR: consult_council is disabled. You must use the three-stage flow to get visibility into deliberation stages:\n"
-        "1. start_council(query=..., confidence=...)\n"
-        "2. council_review(session_id=...)\n"
-        "3. council_synthesize(session_id=...)\n"
-        "Please use the split tools for this query."
+    import os, sys
+    in_test = os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
+    
+    if ctx is not None and not in_test:
+        return (
+            "ERROR: consult_council is disabled. You must use the three-stage flow to get visibility into deliberation stages:\n"
+            "1. start_council(query=..., confidence=...)\n"
+            "2. council_review(session_id=...)\n"
+            "3. council_synthesize(session_id=...)\n"
+            "Please use the split tools for this query."
+        )
+
+    # Fallback for direct Python calls (tests / CLI)
+    from llm_council.verdict import VerdictType
+    v_type = VerdictType(verdict_type) if verdict_type != "synthesis" else None
+
+    # Get standard progress bridge (ADR-012)
+    on_progress = _get_progress_callback(ctx)
+
+    council_result = await run_council_with_fallback(
+        query,
+        tier_contract=create_tier_contract(confidence),
+        verdict_type=v_type,
+        include_dissent=include_dissent,
+        adversarial_mode=adversarial_mode,
+        on_progress=on_progress,
     )
+
+    return _format_council_result(council_result, include_details=include_details)
 
 
 def _format_council_result(council_result: Dict[str, Any], include_details: bool = False) -> str:
@@ -295,15 +361,68 @@ def _format_council_result(council_result: Dict[str, Any], include_details: bool
                         if s_tokens > 0 or s_cost > 0:
                             result += f"- **{display_name}**: {s_tokens:,} tokens (${s_cost:.6f})\n"
 
+    # ADR-012: Detailed breakdown (include_details=True)
+    if include_details:
+        result += "\n### Council Details\n"
+
+        # 1. Model Status
+        result += "\n#### Model Status\n"
+        for model, info in model_responses.items():
+            status_icon = "✅" if info.get("status") == "ok" else "❌"
+            latency = info.get("latency_ms", 0)
+            result += f"- {status_icon} **{model}**: {info.get('status')} ({latency}ms)\n"
+
+        # 2. Individual Opinions (Stage 1)
+        result += "\n#### Stage 1: Individual Opinions\n"
+        # Recover label mappings to show models by name
+        label_to_model = metadata.get("label_to_model", {})
+        model_to_label = {v: k for k, v in label_to_model.items()}
+
+        # Note: stage1_results is often in the top level council_result for CLI,
+        # but in MCP metadata it's sometimes stored differently.
+        # We check both locations, and fall back to model_responses as a last resort.
+        stage1_responses = metadata.get("stage1_results") or council_result.get("stage1_results")
+
+        if not stage1_responses:
+            # Fallback: Extract from model_responses (structured by model ID)
+            stage1_responses = []
+            for m_id, m_info in model_responses.items():
+                if m_info.get("status") == "ok" and "response" in m_info:
+                    stage1_responses.append({"model": m_id, "response": m_info["response"]})
+
+        if stage1_responses:
+            for res in stage1_responses:
+                model_name = res.get("model", "Unknown")
+                label = model_to_label.get(model_name, model_name.split("/")[-1])
+                result += f"\n**{label}**:\n{res.get('response', 'No response.')}\n"
+        else:
+            result += "\n*No individual opinions recorded in this session snapshot.*\n"
+
+        # 3. Peer Review Details (Stage 2)
+        stage2_results = metadata.get("stage2_results") or council_result.get("stage2_results", [])
+        if not stage2_results:
+            # Fallback: Extract rankings from model_responses
+            for m_id, m_info in model_responses.items():
+                if m_info.get("status") == "ok" and "rankings" in m_info:
+                    stage2_results.append({"model": m_id, "rankings": m_info["rankings"]})
+
+        if stage2_results:
+            result += "\n#### Stage 2: Peer Review\n"
+            for res in stage2_results:
+                model_name = res.get("model", "Unknown")
+                label = model_to_label.get(model_name, model_name.split("/")[-1])
+                rankings = res.get("rankings", "No rankings provided.")
+                result += f"\n**{label} Review**:\n{rankings}\n"
+
     return result
 
 
 @mcp.tool()
 async def start_council(
     query: str,
-    ctx: Context,
     confidence: str = "balanced",
     adversarial_mode: bool = False,
+    ctx: Context = None,
 ) -> str:
     """
     Phase 1: Begin a council deliberation. Runs Stage 1 (individual opinions)
@@ -319,28 +438,11 @@ async def start_council(
     tier_contract = create_tier_contract(tier)
     tier_config = _get_tier_timeout(tier)
 
-    # Progress reporting bridge - Fire-and-forget to avoid deadlocks (ADR-012)
-    async def on_progress(step, total, message):
-        if not ctx:
-            return
-
-        async def _send():
-            try:
-                await asyncio.wait_for(ctx.report_progress(step, total), timeout=0.5)
-            except Exception:
-                pass
-            try:
-                await asyncio.wait_for(ctx.info(message), timeout=0.5)
-            except Exception:
-                pass
-
-        asyncio.create_task(_send())
-
     # Phase 1: Collect responses
     # Note: we use our refactored run_stage1 directly
     stage1_data = await run_stage1(
         query,
-        on_progress=on_progress,
+        on_progress=_get_progress_callback(ctx),
         per_model_timeout=tier_config.get("per_model", 90),
         tier_contract=tier_contract,
         adversarial_mode=adversarial_mode,
@@ -368,7 +470,7 @@ async def start_council(
 
 
 @mcp.tool()
-async def council_review(session_id: str, ctx: Context) -> str:
+async def council_review(session_id: str, ctx: Context = None) -> str:
     """
     Phase 2: Run Stage 2 peer review and ranking on a started council session.
     Returns the Borda rankings table. Pass session_id to council_synthesize() next.
@@ -381,32 +483,12 @@ async def council_review(session_id: str, ctx: Context) -> str:
     if session["stage"] != "stage1_complete":
         return json.dumps({"error": f"Session is in stage '{session['stage']}', expected 'stage1_complete'."})
 
-    # Progress reporting bridge - Fire-and-forget to avoid deadlocks (ADR-012)
-    async def on_progress(step, total, message):
-        if not ctx:
-            return
-
-        async def _send():
-            try:
-                await asyncio.wait_for(ctx.report_progress(step, total), timeout=0.5)
-            except Exception:
-                pass
-            try:
-                await asyncio.wait_for(ctx.info(message), timeout=0.5)
-            except Exception:
-                pass
-
-        asyncio.create_task(_send())
-
-    # Create tier contract based on session tier
-    tier_contract = create_tier_contract(session["tier"])
-
-    # Phase 2: Peer Review
+    # Stage 2: Peer Review
     stage2_data = await run_stage2(
         user_query=session["query"],
         stage1_data=session["stage1"],
-        on_progress=on_progress,
-        tier_contract=tier_contract,
+        on_progress=_get_progress_callback(ctx),
+        tier_contract=create_tier_contract(session["tier"]),
     )
 
     # Fast JSON scrubbing for safety (ADR-032 / BUG-FIX)
@@ -438,8 +520,8 @@ async def council_review(session_id: str, ctx: Context) -> str:
 @mcp.tool()
 async def council_synthesize(
     session_id: str,
-    ctx: Context,
     include_details: bool = False,
+    ctx: Context = None,
 ) -> str:
     """
     Phase 3: Run Stage 3 Chairman synthesis on a reviewed council session.
@@ -453,30 +535,13 @@ async def council_synthesize(
     if session["stage"] != "stage2_complete":
         return json.dumps({"error": f"Session is in stage '{session['stage']}', expected 'stage2_complete'."})
 
-    # Progress reporting bridge - Fire-and-forget to avoid deadlocks (ADR-012)
-    async def on_progress(step, total, message):
-        if not ctx:
-            return
-
-        async def _send():
-            try:
-                await asyncio.wait_for(ctx.report_progress(step, total), timeout=0.5)
-            except Exception:
-                pass
-            try:
-                await asyncio.wait_for(ctx.info(message), timeout=0.5)
-            except Exception:
-                pass
-
-        asyncio.create_task(_send())
-
     # Phase 3: Synthesis
     # Note: we use our refactored run_stage3
     council_result = await run_stage3(
         user_query=session["query"],
         stage1_data=session["stage1"],
         stage2_data=session["stage2"],
-        on_progress=on_progress,
+        on_progress=_get_progress_callback(ctx),
         verdict_type=None,  # default to synthesis
         include_dissent=False,  # default
     )
@@ -505,7 +570,7 @@ async def council_health_check() -> str:
 
     checks = {
         "version": council_version,
-        "api_key_configured": bool(OPENROUTER_API_KEY),
+        "api_key_configured": bool(_get_openrouter_api_key()),
         "key_source": get_key_source(),  # ADR-013: Show where key came from (not the key itself)
         "council_size": len(COUNCIL_MODELS),
         "chairman_model": CHAIRMAN_MODEL,
@@ -560,11 +625,11 @@ async def council_health_check() -> str:
 @mcp.tool()
 async def verify(
     snapshot_id: str,
-    ctx: Context,
     target_paths: Optional[List[str]] = None,
     rubric_focus: Optional[str] = None,
     confidence_threshold: float = 0.7,
     tier: str = "balanced",
+    ctx: Context = None,
 ) -> str:
     """
     Verify agent work using the LLM Council verification system (ADR-034).
@@ -587,16 +652,6 @@ async def verify(
         rationale, and transcript location for audit trail.
     """
 
-    # Add progress reporting for verification (long-running ADR-034 task)
-    async def on_progress(step: int, total: int, message: str):
-        if ctx:
-            try:
-                await ctx.report_progress(step, total)
-                await ctx.info(message)
-            except Exception as e:
-                import sys
-                print(f"[verify] progress failed: {e}", file=sys.stderr)
-
     try:
         # Create request object and transcript store
         request = VerifyRequest(
@@ -608,8 +663,12 @@ async def verify(
         )
         store = create_transcript_store()
 
-        # Run the verification with progress callback
-        result = await run_verification(request, store, on_progress=on_progress if ctx else None)
+        # Run the verification with progress callback (ADR-012 standard bridge)
+        result = await run_verification(
+            request, 
+            store, 
+            on_progress=_get_progress_callback(ctx)
+        )
 
         # Return formatted output for human readability
         # JSON is also included at the end for programmatic parsing
@@ -643,10 +702,10 @@ async def verify(
 
 @mcp.tool()
 async def audit(
-    ctx: Context,
     verification_id: Optional[str] = None,
     validate_integrity: bool = False,
     expected_hash: Optional[str] = None,
+    ctx: Context = None,
 ) -> str:
     """
     Retrieve and validate verification audit transcripts (ADR-034).

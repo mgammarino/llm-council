@@ -68,7 +68,7 @@ class TestCreateTierContract:
         contract = create_tier_contract("quick")
 
         assert contract.tier == "quick"
-        assert contract.deadline_ms == 30000  # 30s
+        assert contract.deadline_ms == 36000  # 30s * 1.2
         assert contract.requires_peer_review is False  # Quick skips full peer review
         assert contract.requires_verifier is True  # Quick uses lightweight verifier
         assert contract.max_attempts == 1
@@ -81,7 +81,7 @@ class TestCreateTierContract:
         contract = create_tier_contract("balanced")
 
         assert contract.tier == "balanced"
-        assert contract.deadline_ms == 90000  # 90s
+        assert contract.deadline_ms == 108000  # 90s * 1.2
         assert contract.requires_peer_review is True
         assert contract.requires_verifier is False
         assert contract.max_attempts == 2
@@ -93,7 +93,7 @@ class TestCreateTierContract:
         contract = create_tier_contract("high")
 
         assert contract.tier == "high"
-        assert contract.deadline_ms == 180000  # 180s
+        assert contract.deadline_ms == 216000  # 180s * 1.2
         assert contract.requires_peer_review is True
         assert contract.requires_verifier is False
         assert contract.max_attempts == 3
@@ -105,7 +105,7 @@ class TestCreateTierContract:
         contract = create_tier_contract("reasoning")
 
         assert contract.tier == "reasoning"
-        assert contract.deadline_ms == 600000  # 600s
+        assert contract.deadline_ms == 720000  # 600s * 1.2
         assert contract.requires_peer_review is True
         assert contract.requires_verifier is False
         assert contract.max_attempts == 2

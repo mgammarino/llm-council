@@ -730,8 +730,21 @@ async def run_stage2(
         "[*] Stage 2 complete, synthesizing final consensus...",
     )
 
-    # Note: bias persistence and shadow vote events skipped in split mode for simplicity
-    # but could be added if needed.
+    # ADR-027: Shadow votes / Bias persistence (ADR-032 implementation parity)
+    if track_shadows and aggregate_rankings:
+        shadow_votes = aggregate_rankings[0].get("shadow_votes", [])
+        consensus_winner = aggregate_rankings[0].get("model") if aggregate_rankings else None
+        emit_shadow_vote_events(shadow_votes, consensus_winner)
+
+        # Persist bias data for longitudinal analysis
+        await asyncio.to_thread(
+            persist_session_bias_data,
+            session_id=session_id,
+            stage1_results=stage1_results,
+            stage2_results=stage2_results,
+            label_to_model=label_to_model,
+            query=user_query,
+        )
 
     return {
         "stage2_results": stage2_results,
@@ -786,8 +799,6 @@ async def run_stage3(
             deadlock_detected = True
             effective_verdict_type = VerdictType.TIE_BREAKER
 
-    from llm_council.council import stage3_synthesize_final, generate_partial_warning, _aggregate_stage_usage
-    
     stage3_result, stage3_usage, verdict_result = await stage3_synthesize_final(
         user_query,
         stage1_results,
@@ -924,6 +935,11 @@ async def run_council_with_fallback(
         on_event=on_event,
         request_id=request_id,  # Pass caller's request_id for trace continuity
     )
+
+    # ADR-012/022: Prioritize TierContract timeouts if provided
+    if tier_contract:
+        synthesis_deadline = tier_contract.deadline_ms / 1000
+        per_model_timeout = tier_contract.per_model_timeout_ms / 1000
 
     # ADR-024 (Observability): Record L1 -> L2 boundary
     if tier_contract:
@@ -1128,14 +1144,8 @@ async def run_council_with_fallback(
         aggregate_rankings = stage2_data["aggregate_rankings"]
         label_to_model = stage2_data["label_to_model"]
 
-        # ADR-027: Shadow votes / Bias persistence (inline for full pipeline)
-        if track_shadow_votes_enabled := should_track_shadow_votes(tier_contract):
-            shadow_votes = aggregate_rankings[0].get("shadow_votes", [])
-            consensus_winner = aggregate_rankings[0].get("model") if aggregate_rankings else None
-            emit_shadow_vote_events(shadow_votes, consensus_winner)
-
-        await asyncio.to_thread(
-            persist_session_bias_data,
+        # ADR-018: Persist bias metrics for cross-session analysis
+        persist_session_bias_data(
             session_id=session_id,
             stage1_results=stage1_results,
             stage2_results=stage2_results,
@@ -1147,7 +1157,7 @@ async def run_council_with_fallback(
         try:
             stage2_event = LayerEvent(
                 event_type=LayerEventType.L3_STAGE_COMPLETE,
-                data={"stage": 2, "rankings": len(stage2_results)},
+                data={"stage": 2, "rankings": len(stage2_data["stage2_results"])},
             )
             await event_bridge.emit(stage2_event)
         except Exception:
@@ -1163,9 +1173,11 @@ async def run_council_with_fallback(
             include_dissent=include_dissent,
         )
         
-        # Merge telemetry/usage back to master result
-        # usage_info is already updated via .update() above
-        # result is already fully formed by run_stage3
+        # Restore full telemetry parity (ADR-022 / BUG-FIX)
+        # Capture stage3 usage that was computed inside run_stage3
+        if "metadata" in result and "usage" in result["metadata"] and "stages" in result["metadata"]["usage"]:
+             usage_info.setdefault("stage3", {}).update(result["metadata"]["usage"]["stages"].get("stage3", {}))
+        
         result["metadata"]["usage"] = _aggregate_stage_usage(usage_info)
 
         # Emit telemetry event (fire-and-forget)

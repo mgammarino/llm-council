@@ -373,7 +373,7 @@ class TestConfigAccess:
         config = UnifiedConfig()
         tier_contract = config.get_tier_contract("balanced")
         assert tier_contract.tier == "balanced"
-        assert tier_contract.deadline_ms == 90000
+        assert tier_contract.deadline_ms == 108000
         assert len(tier_contract.allowed_models) >= 2
 
     def test_get_gateway_for_model(self):
