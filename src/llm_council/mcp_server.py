@@ -238,7 +238,7 @@ async def consult_council(
     # Add council rankings if available
     aggregate = metadata.get("aggregate_rankings", [])
     if aggregate:
-        result += "\n### Council Rankings\n"
+        result += "\n### Council Rankings (Borda Score)\n"
         for entry in aggregate[:10]:  # Top 10
             entry_dict: dict[str, Any] = entry
             model = entry_dict.get("model", "Unknown")
@@ -281,6 +281,25 @@ async def consult_council(
         alerts: list[str] = quality_metrics.get("quality_alerts", [])
         if alerts:
             result += f"\n**Alerts**: {', '.join(alerts)}\n"
+
+    # ADR-DA: Display Devil's Advocate Critique if available (Stage 1B)
+    dissent_report = metadata.get("dissent_report")
+    if dissent_report:
+        result += "\n" + "!" * 40 + "\n"
+        result += "### DEVIL'S ADVOCATE - DISSENTING REPORT\n"
+        result += "-" * 40 + "\n"
+        result += dissent_report + "\n"
+        result += "!" * 40 + "\n"
+
+    # ADR-CD: Display Constructive Dissent if available (Minority Opinion from Stage 2)
+    # Note: query.py calls this 'dissent', mcp_server metadata has it as 'dissent'
+    minority_opinion = metadata.get("dissent")
+    if minority_opinion:
+        result += "\n" + "." * 40 + "\n"
+        result += "### CONSTRUCTIVE DISSENT (Minority Opinion)\n"
+        result += "-" * 40 + "\n"
+        result += minority_opinion + "\n"
+        result += "." * 40 + "\n"
 
     # Add usage and cost info (ADR-022)
     usage = metadata.get("usage", {})

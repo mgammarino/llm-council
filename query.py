@@ -66,8 +66,8 @@ async def main():
             include_dissent=args.dissent,
         )
 
-        print("[*] Stage 2: Peer reviewing and ranking...")
-        print("[*] Stage 3: Synthesizing final consensus...")
+        print("[*] Stage 2: Peer reviewing and ranking responses...")
+        print("[*] Stage 2 complete, synthesizing final consensus...")
 
         synthesis = (
             stage3.get("response", "No synthesis provided.") if isinstance(stage3, dict) else stage3
