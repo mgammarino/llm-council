@@ -131,11 +131,11 @@ CONFIDENCE_CONFIGS = _build_confidence_configs()
 @mcp.tool()
 async def consult_council(
     query: str,
-    confidence: str = "high",
+    confidence: str = "balanced",
     include_details: bool = False,
     verdict_type: str = "synthesis",
     include_dissent: bool = False,
-    adversarial_mode: Optional[bool] = None,
+    adversarial_mode: Optional[bool] = False,
     ctx: Optional[Context] = None,
 ) -> str:
     """
@@ -143,14 +143,14 @@ async def consult_council(
 
     Args:
         query: The question to ask the council.
-        confidence: Response quality level - "quick" (2 models, ~10s), "balanced" (3 models, ~25s), or "high" (full council, ~45s).
+        confidence: Response quality level - "quick" (30s), "balanced" (90s), "high" (180s), or "reasoning" (600s).
         include_details: If True, includes individual model responses and rankings.
         verdict_type: Type of verdict to render (ADR-025b Jury Mode):
             - "synthesis": Default behavior, unstructured natural language synthesis
             - "binary": Go/no-go decision (approved/rejected) with confidence score
             - "tie_breaker": Chairman resolves deadlocked decisions
         include_dissent: If True, extract minority opinions from Stage 2 evaluations (ADR-025b).
-        adversarial_mode: Optional[bool] = None, manually toggle Reactive Devil's Advocate (Stage 1B).
+        adversarial_mode: bool = False, manually toggle Reactive Devil's Advocate (Stage 1B).
         ctx: MCP context for progress reporting (injected automatically).
 
     Returns:
