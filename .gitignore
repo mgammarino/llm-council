@@ -64,4 +64,8 @@ site/
 # MCP server configuration (may contain API keys)
 .mcp.json
 .council/
-.council/
+
+# Agent Setup (Repomix + Mem0)
+repomix-output.md
+.mem0_qdrant/
+scratch/

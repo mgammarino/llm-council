@@ -1,0 +1,41 @@
+{
+  "output": {
+    "filePath": "repomix-output.md",
+    "style": "markdown",
+    "removeComments": false,
+    "removeEmptyLines": true,
+    "showLineNumbers": true,
+    "topFilesLength": 20,
+    "includeSubpackages": true,
+    "copyToClipboard": false
+  },
+  "include": [
+    "**/*"
+  ],
+  "ignore": {
+    "customPatterns": [
+      ".venv/**",
+      "venv/**",
+      ".mypy_cache/**",
+      ".pytest_cache/**",
+      ".ruff_cache/**",
+      "site/**",
+      "tmp/**",
+      ".agent/**",
+      ".claude/**",
+      ".council/**",
+      ".git/**",
+      ".github/**",
+      "data/**",
+      "scratch/**",
+      "uv.lock",
+      "test_output.txt",
+      "mcp_stderr.log"
+    ],
+    "useGitignore": true,
+    "useDefaultPatterns": true
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}
