@@ -137,7 +137,7 @@ class AuditionTracker:
 
         if current is None:
             # New model - create initial SHADOW status
-            now = datetime.utcnow()
+            now = datetime.now(datetime.UTC)
             current = AuditionStatus(
                 model_id=model_id,
                 state=AuditionState.SHADOW,

@@ -138,7 +138,7 @@ class TestAuditionTrackerCheckTransitions:
 
         # Manually adjust first_seen to meet min_days requirement
         status = tracker.get_status("openai/gpt-5-mini")
-        status.first_seen = datetime.utcnow() - timedelta(days=5)
+        status.first_seen = datetime.now(datetime.UTC) - timedelta(days=5)
         tracker._cache["openai/gpt-5-mini"] = status
 
         criteria = AuditionCriteria()
@@ -162,7 +162,7 @@ class TestAuditionTrackerCheckTransitions:
             tracker.record_session("openai/gpt-5-mini", success=True)
 
         status = tracker.get_status("openai/gpt-5-mini")
-        status.first_seen = datetime.utcnow() - timedelta(days=5)
+        status.first_seen = datetime.now(datetime.UTC) - timedelta(days=5)
         tracker._cache["openai/gpt-5-mini"] = status
 
         criteria = AuditionCriteria()

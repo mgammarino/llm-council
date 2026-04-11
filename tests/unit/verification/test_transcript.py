@@ -139,7 +139,7 @@ class TestAtomicWrites:
                     "openai/gpt-4": {"content": "Response 1", "latency_ms": 100},
                     "anthropic/claude-3": {"content": "Response 2", "latency_ms": 150},
                 },
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(datetime.UTC).isoformat(),
             }
 
             store.write_stage(vid, "stage1", stage1_data)

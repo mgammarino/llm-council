@@ -28,8 +28,8 @@ class TestDiscoverTierCandidates:
             context_window=128000,
             quality_tier=QualityTier.FRONTIER,
         )
-        registry._cache["openai/gpt-4o"] = RegistryEntry(info=info, fetched_at=datetime.utcnow())
-        registry._last_refresh = datetime.utcnow()
+        registry._cache["openai/gpt-4o"] = RegistryEntry(info=info, fetched_at=datetime.now(datetime.UTC))
+        registry._last_refresh = datetime.now(datetime.UTC)
 
         # Mock to detect if any API calls are made
         mock_provider = MagicMock()
@@ -58,7 +58,7 @@ class TestDiscoverTierCandidates:
             quality_tier=QualityTier.FRONTIER,
         )
         registry._cache["openai/gpt-4o"] = RegistryEntry(
-            info=frontier_info, fetched_at=datetime.utcnow()
+            info=frontier_info, fetched_at=datetime.now(datetime.UTC)
         )
 
         # Add ECONOMY model
@@ -68,10 +68,10 @@ class TestDiscoverTierCandidates:
             quality_tier=QualityTier.ECONOMY,
         )
         registry._cache["google/gemini-flash"] = RegistryEntry(
-            info=economy_info, fetched_at=datetime.utcnow()
+            info=economy_info, fetched_at=datetime.now(datetime.UTC)
         )
 
-        registry._last_refresh = datetime.utcnow()
+        registry._last_refresh = datetime.now(datetime.UTC)
 
         # Frontier tier should only include FRONTIER models
         candidates = discover_tier_candidates("frontier", registry)
@@ -93,7 +93,7 @@ class TestDiscoverTierCandidates:
             quality_tier=QualityTier.FRONTIER,
         )
         registry._cache["anthropic/claude-3-opus"] = RegistryEntry(
-            info=large_ctx, fetched_at=datetime.utcnow()
+            info=large_ctx, fetched_at=datetime.now(datetime.UTC)
         )
 
         # Add model with small context

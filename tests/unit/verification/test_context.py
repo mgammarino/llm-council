@@ -101,9 +101,9 @@ class TestCreateIsolatedContext:
 
     def test_create_isolated_context_captures_timestamp(self):
         """Context should capture creation timestamp."""
-        before = datetime.utcnow()
+        before = datetime.now(datetime.UTC)
         ctx = create_isolated_context(snapshot_id="abc1234")
-        after = datetime.utcnow()
+        after = datetime.now(datetime.UTC)
 
         assert before <= ctx.created_at <= after
 

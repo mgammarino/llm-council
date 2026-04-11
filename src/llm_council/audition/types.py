@@ -69,7 +69,7 @@ class AuditionStatus:
         """
         if self.first_seen is None:
             return None
-        delta = datetime.utcnow() - self.first_seen
+        delta = datetime.now(datetime.UTC) - self.first_seen
         return delta.days
 
 
@@ -130,7 +130,7 @@ def evaluate_state_transition(
     # Check quarantine expiry first (highest priority for QUARANTINE state)
     if status.state == AuditionState.QUARANTINE:
         if status.quarantine_until is not None:
-            now = datetime.utcnow()
+            now = datetime.now(datetime.UTC)
             if now >= status.quarantine_until:
                 return AuditionState.SHADOW
         return None
@@ -196,7 +196,7 @@ def record_session_result(
     Returns:
         New AuditionStatus with updated fields
     """
-    now = datetime.utcnow()
+    now = datetime.now(datetime.UTC)
 
     # Set first_seen if this is the first session
     first_seen = status.first_seen if status.first_seen is not None else now

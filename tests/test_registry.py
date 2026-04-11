@@ -47,7 +47,7 @@ class TestRegistryEntry:
             context_window=128000,
             quality_tier=QualityTier.FRONTIER,
         )
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         entry = RegistryEntry(info=info, fetched_at=now)
 
         assert entry.info == info
@@ -65,7 +65,7 @@ class TestRegistryEntry:
         )
         entry = RegistryEntry(
             info=info,
-            fetched_at=datetime.utcnow(),
+            fetched_at=datetime.now(datetime.UTC),
             is_deprecated=True,
         )
 

@@ -77,7 +77,7 @@ class HttpTelemetry:
         self.flush_interval = flush_interval
 
         self._buffer: List[Dict[str, Any]] = []
-        self._last_flush = datetime.utcnow()
+        self._last_flush = datetime.now(datetime.UTC)
         self._lock = asyncio.Lock()
 
     def is_enabled(self) -> bool:

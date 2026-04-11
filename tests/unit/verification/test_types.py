@@ -93,7 +93,7 @@ class TestVerificationResult:
             verification_id="test-123",
             verdict=VerdictType.PASS,
             confidence=0.95,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(datetime.UTC),
             original_response_hash="abc123",
             verifier_responses=[],
             consensus_result=ConsensusResult(

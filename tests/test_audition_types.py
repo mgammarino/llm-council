@@ -136,7 +136,7 @@ class TestAuditionStatus:
         """days_tracked property calculates correctly."""
         from llm_council.audition.types import AuditionState, AuditionStatus
 
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         five_days_ago = now - timedelta(days=5)
         status = AuditionStatus(
             model_id="openai/gpt-5-mini",

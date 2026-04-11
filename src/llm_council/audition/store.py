@@ -38,7 +38,7 @@ def _status_to_dict(status: AuditionStatus) -> Dict:
         "quarantine_until": (
             status.quarantine_until.isoformat() if status.quarantine_until else None
         ),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(datetime.UTC).isoformat(),
     }
 
 

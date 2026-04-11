@@ -21,7 +21,7 @@ class TestShadowToProbation:
             evaluate_state_transition,
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         status = AuditionStatus(
             model_id="openai/gpt-5-mini",
             state=AuditionState.SHADOW,
@@ -43,7 +43,7 @@ class TestShadowToProbation:
             evaluate_state_transition,
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         status = AuditionStatus(
             model_id="openai/gpt-5-mini",
             state=AuditionState.SHADOW,
@@ -65,7 +65,7 @@ class TestShadowToProbation:
             evaluate_state_transition,
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         status = AuditionStatus(
             model_id="openai/gpt-5-mini",
             state=AuditionState.SHADOW,
@@ -91,7 +91,7 @@ class TestProbationToEvaluation:
             evaluate_state_transition,
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         status = AuditionStatus(
             model_id="openai/gpt-5-mini",
             state=AuditionState.PROBATION,
