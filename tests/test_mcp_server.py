@@ -85,7 +85,12 @@ async def test_consult_council_with_details():
     mock_result = {
         "synthesis": "Synthesized response",
         "model_responses": {
-            "test-model": {"status": "ok", "latency_ms": 1000, "response": "Test response"}
+            "test-model": {
+                "status": "ok", 
+                "latency_ms": 1000, 
+                "response": "Test response",
+                "rankings": "1. Model A > Model B"
+            }
         },
         "metadata": {
             "status": "complete",
@@ -173,7 +178,7 @@ async def test_council_health_check_no_api_key():
     """Test health check when API key is not configured."""
     from llm_council.mcp_server import council_health_check
 
-    with patch("llm_council.mcp_server.OPENROUTER_API_KEY", None):
+    with patch("llm_council.mcp_server.get_api_key", return_value=None):
         result = await council_health_check()
         data = json.loads(result)
 
@@ -183,13 +188,20 @@ async def test_council_health_check_no_api_key():
 
 
 @pytest.mark.asyncio
-@pytest.mark.vcr()
 async def test_council_health_check_success():
     """Test health check with successful API connectivity."""
     from llm_council.mcp_server import council_health_check
     from llm_council.openrouter import STATUS_OK
 
-    with patch("llm_council.mcp_server.OPENROUTER_API_KEY", "test-key"):
+    mock_response = {
+        "status": STATUS_OK,
+        "latency_ms": 100,
+    }
+
+    with (
+        patch("llm_council.mcp_server.get_api_key", return_value="test-key"),
+        patch("llm_council.mcp_server.query_model_with_status", return_value=mock_response),
+    ):
         result = await council_health_check()
         data = json.loads(result)
 
@@ -212,7 +224,7 @@ async def test_council_health_check_api_error():
     }
 
     with (
-        patch("llm_council.mcp_server.OPENROUTER_API_KEY", "invalid-key"),
+        patch("llm_council.mcp_server.get_api_key", return_value="invalid-key"),
         patch("llm_council.mcp_server.query_model_with_status", return_value=mock_response),
     ):
         result = await council_health_check()
@@ -228,7 +240,7 @@ async def test_council_health_check_includes_estimates():
     """Test health check includes duration estimates (ADR-012)."""
     from llm_council.mcp_server import council_health_check
 
-    with patch("llm_council.mcp_server.OPENROUTER_API_KEY", None):
+    with patch("llm_council.mcp_server.get_api_key", return_value=None):
         result = await council_health_check()
         data = json.loads(result)
 

@@ -33,7 +33,7 @@ async def test_query_model_with_status_success():
     """Test query_model_with_status returns structured result on success."""
     from llm_council.openrouter import STATUS_OK, query_model_with_status
 
-    with patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"):
+    with patch("llm_council.openrouter.get_api_key", return_value="test-key"):
         result = await query_model_with_status("test-model", [{"role": "user", "content": "test"}])
 
         assert result["status"] == STATUS_OK
@@ -48,7 +48,7 @@ async def test_query_model_with_status_timeout():
     from llm_council.openrouter import STATUS_TIMEOUT, query_model_with_status
 
     with (
-        patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"),
+        patch("llm_council.openrouter.get_api_key", return_value="test-key"),
         patch("httpx.AsyncClient") as mock_client,
     ):
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
@@ -74,7 +74,7 @@ async def test_query_model_with_status_rate_limited():
     mock_response.headers = {"Retry-After": "30"}
 
     with (
-        patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"),
+        patch("llm_council.openrouter.get_api_key", return_value="test-key"),
         patch("httpx.AsyncClient") as mock_client,
     ):
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
@@ -97,7 +97,7 @@ async def test_query_model_with_status_auth_error():
     mock_response.status_code = 401
 
     with (
-        patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"),
+        patch("llm_council.openrouter.get_api_key", return_value="test-key"),
         patch("httpx.AsyncClient") as mock_client,
     ):
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
@@ -116,7 +116,7 @@ async def test_query_model_with_status_generic_error():
     from llm_council.openrouter import STATUS_ERROR, query_model_with_status
 
     with (
-        patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"),
+        patch("llm_council.openrouter.get_api_key", return_value="test-key"),
         patch("httpx.AsyncClient") as mock_client,
     ):
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
@@ -136,7 +136,7 @@ async def test_query_model_backwards_compatible():
     from llm_council.openrouter import query_model
 
     with (
-        patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"),
+        patch("llm_council.openrouter.get_api_key", return_value="test-key"),
         patch("httpx.AsyncClient") as mock_client,
     ):
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
@@ -159,7 +159,7 @@ async def test_query_models_with_progress():
     async def track_progress(completed, total, message):
         progress_calls.append((completed, total, message))
 
-    with patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"):
+    with patch("llm_council.openrouter.get_api_key", return_value="test-key"):
         results = await query_models_with_progress(
             ["model-a", "model-b"],
             [{"role": "user", "content": "test"}],
@@ -178,7 +178,7 @@ async def test_query_models_with_progress_no_callback():
     """Test query_models_with_progress works without callback."""
     from llm_council.openrouter import STATUS_OK, query_models_with_progress
 
-    with patch("llm_council.openrouter.OPENROUTER_API_KEY", "test-key"):
+    with patch("llm_council.openrouter.get_api_key", return_value="test-key"):
         results = await query_models_with_progress(
             ["model-a"], [{"role": "user", "content": "test"}], on_progress=None
         )

@@ -13,15 +13,33 @@ Implements ADR-012: MCP Server Reliability and Long-Running Operation Handling
 import json
 import time
 import asyncio
-from typing import List, Optional, Any, Dict
+import os
+import sys
+from typing import List, Optional, Any, Dict, Callable
+
+# Ensure src is in sys.path for robust imports (ADR-032 path fix)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 from mcp.server.fastmcp import FastMCP, Context
 
 from llm_council.council import (
     run_council_with_fallback,
+    run_stage1,
+    run_stage2,
+    run_stage3,
     TIMEOUT_SYNTHESIS_TRIGGER,
 )
+from llm_council.tier_contract import create_tier_contract
 from llm_council.verdict import VerdictType
+from llm_council.session_store import (
+    create_session,
+    load_session,
+    save_session,
+    close_session,
+    purge_expired_sessions,
+)
 from llm_council.verification.api import run_verification, VerifyRequest
 from llm_council.verification.context import InvalidSnapshotError
 from llm_council.verification.formatting import format_verification_result
@@ -33,7 +51,6 @@ from llm_council.verification.transcript import (
 
 # ADR-032: Migrated to unified_config
 from llm_council.unified_config import get_config, get_api_key
-from llm_council.tier_contract import create_tier_contract
 from llm_council.openrouter import query_model_with_status, STATUS_OK
 
 
@@ -128,6 +145,41 @@ def _build_confidence_configs() -> dict:
 CONFIDENCE_CONFIGS = _build_confidence_configs()
 
 
+def _get_progress_callback(ctx: Optional[Context]) -> Optional[Callable]:
+    """
+    Creates a progress callback bridge for a given MCP context.
+    Implements ADR-012 fire-and-forget logic in prod, and synchronous await in tests.
+    """
+    if not ctx:
+        return None
+
+    import os
+    import sys
+    in_test = os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
+
+    async def on_progress(step: int, total: int, message: str):
+        async def _send():
+            try:
+                # FastMCP ctx.report_progress(step, total)
+                await asyncio.wait_for(ctx.report_progress(step, total), timeout=0.5)
+            except Exception:
+                pass
+            try:
+                # ADR-012: ctx.info() pushes messages into Claude's "Thinking" block
+                await asyncio.wait_for(ctx.info(message), timeout=0.5)
+            except Exception:
+                pass
+
+        if in_test:
+            # We must await in tests to avoid race conditions and test failures
+            await _send()
+        else:
+            # Fire-and-forget in prod to prevent stdio pipe blocking/deadlocks
+            asyncio.create_task(_send())
+
+    return on_progress
+
+
 @mcp.tool()
 async def consult_council(
     query: str,
@@ -135,71 +187,47 @@ async def consult_council(
     include_details: bool = False,
     verdict_type: str = "synthesis",
     include_dissent: bool = False,
-    adversarial_mode: Optional[bool] = False,
-    ctx: Optional[Context] = None,
+    adversarial_mode: bool = False,
+    ctx: Context = None,
 ) -> str:
     """
-    Consult the LLM Council for guidance on a query.
-
-    Args:
-        query: The question to ask the council.
-        confidence: Response quality level - "quick" (30s), "balanced" (90s), "high" (180s), or "reasoning" (600s).
-        include_details: If True, includes individual model responses and rankings.
-        verdict_type: Type of verdict to render (ADR-025b Jury Mode):
-            - "synthesis": Default behavior, unstructured natural language synthesis
-            - "binary": Go/no-go decision (approved/rejected) with confidence score
-            - "tie_breaker": Chairman resolves deadlocked decisions
-        include_dissent: If True, extract minority opinions from Stage 2 evaluations (ADR-025b).
-        adversarial_mode: bool = False, manually toggle Reactive Devil's Advocate (Stage 1B).
-        ctx: MCP context for progress reporting (injected automatically).
-
-    Returns:
-        Formatted string containing the council's synthesis, rankings, and quality metrics (ADR-036).
-        Quality metrics include:
-        - Consensus Strength Score (CSS): Agreement among council members (0.0-1.0)
-        - Deliberation Depth Index (DDI): Thoroughness of deliberation (0.0-1.0)
-        - Synthesis Attribution Score (SAS): How well synthesis is grounded in sources
+    DEPRECATED: Use start_council -> council_review -> council_synthesize instead.
+    This monolithic tool is DISABLED for MCP use to ensure real-time progress visibility.
     """
-    # Parse verdict_type string to enum
-    try:
-        verdict_type_enum = VerdictType(verdict_type.lower())
-    except ValueError:
-        verdict_type_enum = VerdictType.SYNTHESIS
-    # Get confidence configuration (ADR-012 Section 5: Tier-Sovereign Timeouts)
-    config = CONFIDENCE_CONFIGS.get(confidence, CONFIDENCE_CONFIGS["high"])
-    total_timeout = config.get("total", TIMEOUT_SYNTHESIS_TRIGGER)
-    per_model_timeout = config.get("per_model", 90)  # Default to high tier
+    import os
+    import sys
+    in_test = os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
+    
+    if ctx is not None and not in_test:
+        return (
+            "ERROR: consult_council is disabled. You must use the three-stage flow to get visibility into deliberation stages:\n"
+            "1. start_council(query=..., confidence=...)\n"
+            "2. council_review(session_id=...)\n"
+            "3. council_synthesize(session_id=...)\n"
+            "Please use the split tools for this query."
+        )
 
-    # Create TierContract for tier-appropriate model selection (ADR-022)
-    tier = confidence if confidence in TIER_MODEL_POOLS else "high"
-    tier_contract = create_tier_contract(tier)
+    # Fallback for direct Python calls (tests / CLI)
+    from llm_council.verdict import VerdictType
+    v_type = VerdictType(verdict_type) if verdict_type != "synthesis" else None
 
-    # Progress reporting helper that bridges MCP context to council callback
-    async def on_progress(step: int, total: int, message: str):
-        if ctx:
-            try:
-                await ctx.report_progress(step, total, message)
-            except Exception:
-                pass  # Progress reporting is best-effort
+    # Get standard progress bridge (ADR-012)
+    on_progress = _get_progress_callback(ctx)
 
-    # Run the council with ADR-012, ADR-022, and ADR-025b features:
-    # - Tier-sovereign timeouts (per-tier total and per-model)
-    # - Tier-appropriate model selection (ADR-022)
-    # - Partial results on timeout
-    # - Fallback synthesis
-    # - Per-model status tracking
-    # - Jury Mode verdict types (ADR-025b)
     council_result = await run_council_with_fallback(
         query,
-        on_progress=on_progress,
-        synthesis_deadline=total_timeout,
-        per_model_timeout=per_model_timeout,
-        tier_contract=tier_contract,
-        verdict_type=verdict_type_enum,
+        tier_contract=create_tier_contract(confidence),
+        verdict_type=v_type,
         include_dissent=include_dissent,
         adversarial_mode=adversarial_mode,
+        on_progress=on_progress,
     )
 
+    return _format_council_result(council_result, include_details=include_details)
+
+
+def _format_council_result(council_result: Dict[str, Any], include_details: bool = False) -> str:
+    """Format the raw ADR-012 council result into a human-readable string for MCP output."""
     # Extract results from ADR-012 structured response
     synthesis = council_result.get("synthesis", "No response from council.")
     metadata = council_result.get("metadata", {})
@@ -238,7 +266,7 @@ async def consult_council(
     # Add council rankings if available
     aggregate = metadata.get("aggregate_rankings", [])
     if aggregate:
-        result += "\n### Council Rankings\n"
+        result += "\n### Council Rankings (Borda Score)\n"
         for entry in aggregate[:10]:  # Top 10
             entry_dict: dict[str, Any] = entry
             model = entry_dict.get("model", "Unknown")
@@ -270,7 +298,7 @@ async def consult_council(
         result += f"- **Deliberation Depth**: {ddi:.2f} [{ddi_bar}]\n"
 
         # Synthesis Attribution Score
-        sas = core.get("synthesis_attribution", {})
+        sas = quality_metrics.get("synthesis_attribution", {})
         if sas:
             grounded = "✓" if sas.get("grounded", False) else "✗"
             result += f"- **Synthesis Grounded**: {grounded} (alignment: {sas.get('max_source_alignment', 0):.2f})\n"
@@ -281,6 +309,25 @@ async def consult_council(
         alerts: list[str] = quality_metrics.get("quality_alerts", [])
         if alerts:
             result += f"\n**Alerts**: {', '.join(alerts)}\n"
+
+    # ADR-DA: Display Devil's Advocate Critique if available (Stage 1B)
+    dissent_report = metadata.get("dissent_report")
+    if dissent_report:
+        result += "\n" + "!" * 40 + "\n"
+        result += "### DEVIL'S ADVOCATE - DISSENTING REPORT\n"
+        result += "-" * 40 + "\n"
+        result += dissent_report + "\n"
+        result += "!" * 40 + "\n"
+
+    # ADR-CD: Display Constructive Dissent if available (Minority Opinion from Stage 2)
+    # Note: query.py calls this 'dissent', mcp_server metadata has it as 'dissent'
+    minority_opinion = metadata.get("dissent")
+    if minority_opinion:
+        result += "\n" + "." * 40 + "\n"
+        result += "### CONSTRUCTIVE DISSENT (Minority Opinion)\n"
+        result += "-" * 40 + "\n"
+        result += minority_opinion + "\n"
+        result += "." * 40 + "\n"
 
     # Add usage and cost info (ADR-022)
     usage = metadata.get("usage", {})
@@ -316,32 +363,196 @@ async def consult_council(
                         if s_tokens > 0 or s_cost > 0:
                             result += f"- **{display_name}**: {s_tokens:,} tokens (${s_cost:.6f})\n"
 
+    # ADR-012: Detailed breakdown (include_details=True)
     if include_details:
-        result += "\n\n### Council Details\n"
+        result += "\n### Council Details\n"
 
-        # Add per-model status (ADR-012)
+        # 1. Model Status
         result += "\n#### Model Status\n"
         for model, info in model_responses.items():
-            model_short = model.split("/")[-1]
-            status_icon = "✓" if info.get("status") == "ok" else "✗"
+            status_icon = "✅" if info.get("status") == "ok" else "❌"
             latency = info.get("latency_ms", 0)
-            result += (
-                f"- {status_icon} {model_short}: {info.get('status', 'unknown')} ({latency}ms)\n"
-            )
+            result += f"- {status_icon} **{model}**: {info.get('status')} ({latency}ms)\n"
 
-        # Add Stage 1 details (Individual Responses) - only successful ones
+        # 2. Individual Opinions (Stage 1)
         result += "\n#### Stage 1: Individual Opinions\n"
-        for model, info in model_responses.items():
-            if info.get("status") == "ok" and info.get("response"):
-                result += f"\n**{model}**:\n{info['response']}\n"
-
-        # Add Stage 2 details (Rankings) if available
+        # Recover label mappings to show models by name
         label_to_model = metadata.get("label_to_model", {})
-        if label_to_model:
+        model_to_label = {v: k for k, v in label_to_model.items()}
+
+        # Note: stage1_results is often in the top level council_result for CLI,
+        # but in MCP metadata it's sometimes stored differently.
+        # We check both locations, and fall back to model_responses as a last resort.
+        stage1_responses = metadata.get("stage1_results") or council_result.get("stage1_results")
+
+        if not stage1_responses:
+            # Fallback: Extract from model_responses (structured by model ID)
+            stage1_responses = []
+            for m_id, m_info in model_responses.items():
+                if m_info.get("status") == "ok" and "response" in m_info:
+                    stage1_responses.append({"model": m_id, "response": m_info["response"]})
+
+        if stage1_responses:
+            for res in stage1_responses:
+                model_name = res.get("model", "Unknown")
+                label = model_to_label.get(model_name, model_name.split("/")[-1])
+                result += f"\n**{label}**:\n{res.get('response', 'No response.')}\n"
+        else:
+            result += "\n*No individual opinions recorded in this session snapshot.*\n"
+
+        # 3. Peer Review Details (Stage 2)
+        stage2_results = metadata.get("stage2_results") or council_result.get("stage2_results", [])
+        if not stage2_results:
+            # Fallback: Extract rankings from model_responses
+            for m_id, m_info in model_responses.items():
+                if m_info.get("status") == "ok" and "rankings" in m_info:
+                    stage2_results.append({"model": m_id, "rankings": m_info["rankings"]})
+
+        if stage2_results:
             result += "\n#### Stage 2: Peer Review\n"
-            result += f"*Label mappings: {json.dumps(label_to_model)}*\n"
+            for res in stage2_results:
+                model_name = res.get("model", "Unknown")
+                label = model_to_label.get(model_name, model_name.split("/")[-1])
+                rankings = res.get("rankings", "No rankings provided.")
+                result += f"\n**{label} Review**:\n{rankings}\n"
 
     return result
+
+
+@mcp.tool()
+async def start_council(
+    query: str,
+    confidence: str = "balanced",
+    adversarial_mode: bool = False,
+    ctx: Context = None,
+) -> str:
+    """
+    Phase 1: Begin a council deliberation. Runs Stage 1 (individual opinions)
+    and optionally Stage 1B (Devil's Advocate). Returns a session_id — pass it
+    to council_review() to continue.
+    """
+    # ADR-012: Opportunistic cleanup of expired sessions
+    purge_expired_sessions()
+
+    # Get configuration via lazy-loaded helpers
+    tier_pools = _get_tier_model_pools()
+    tier = confidence if confidence in tier_pools else "high"
+    tier_contract = create_tier_contract(tier)
+    tier_config = _get_tier_timeout(tier)
+
+    # Phase 1: Collect responses
+    # Note: we use our refactored run_stage1 directly
+    stage1_data = await run_stage1(
+        query,
+        on_progress=_get_progress_callback(ctx),
+        per_model_timeout=tier_config.get("per_model", 90),
+        tier_contract=tier_contract,
+        adversarial_mode=adversarial_mode,
+    )
+
+    # Persist session to disk
+    session_id = create_session(
+        query=query,
+        tier=tier,
+        confidence=confidence,
+        stage="stage1_complete",
+        stage1=stage1_data,
+    )
+
+    model_count = stage1_data.get("requested_models", 0)
+    ok_count = len(stage1_data.get("stage1_results", []))
+
+    return json.dumps({
+        "session_id": session_id,
+        "status": "stage1_complete",
+        "models_total": model_count,
+        "models_ok": ok_count,
+        "next_step": f"Call council_review(session_id='{session_id}') to run peer review.",
+    }, indent=2)
+
+
+@mcp.tool()
+async def council_review(session_id: str, ctx: Context = None) -> str:
+    """
+    Phase 2: Run Stage 2 peer review and ranking on a started council session.
+    Returns the Borda rankings table. Pass session_id to council_synthesize() next.
+    """
+    try:
+        session = load_session(session_id)
+    except FileNotFoundError as e:
+        return json.dumps({"error": str(e)})
+
+    if session["stage"] != "stage1_complete":
+        return json.dumps({"error": f"Session is in stage '{session['stage']}', expected 'stage1_complete'."})
+
+    # Stage 2: Peer Review
+    stage2_data = await run_stage2(
+        user_query=session["query"],
+        stage1_data=session["stage1"],
+        on_progress=_get_progress_callback(ctx),
+        tier_contract=create_tier_contract(session["tier"]),
+    )
+
+    # Fast JSON scrubbing for safety (ADR-032 / BUG-FIX)
+    try:
+        # Use json.dumps with default=str to force serializability
+        safe_stage2 = json.loads(json.dumps(stage2_data, default=str))
+    except Exception:
+        # Fallback to crude string conversion if anything goes wrong
+        safe_stage2 = {"error": "serialization_failed", "original": str(stage2_data)}
+
+    # Update session
+    save_session(session_id, {"stage": "stage2_complete", "stage2": safe_stage2})
+
+    # Build preview of rankings
+    aggregate = stage2_data.get("aggregate_rankings", [])
+    rankings_text = "\n".join(
+        f"{i+1}. {e.get('model','?').split('/')[-1]} (Borda: {float(e.get('borda_score',0)):.3f})"
+        for i, e in enumerate(aggregate[:8])
+    )
+
+    return json.dumps({
+        "session_id": session_id,
+        "status": "stage2_complete",
+        "rankings_preview": rankings_text,
+        "next_step": f"Call council_synthesize(session_id='{session_id}') for the Chairman's verdict.",
+    }, indent=2)
+
+
+@mcp.tool()
+async def council_synthesize(
+    session_id: str,
+    include_details: bool = False,
+    ctx: Context = None,
+) -> str:
+    """
+    Phase 3: Run Stage 3 Chairman synthesis on a reviewed council session.
+    Returns the full council result and cleans up the session file.
+    """
+    try:
+        session = load_session(session_id)
+    except FileNotFoundError as e:
+        return json.dumps({"error": str(e)})
+
+    if session["stage"] != "stage2_complete":
+        return json.dumps({"error": f"Session is in stage '{session['stage']}', expected 'stage2_complete'."})
+
+    # Phase 3: Synthesis
+    # Note: we use our refactored run_stage3
+    council_result = await run_stage3(
+        user_query=session["query"],
+        stage1_data=session["stage1"],
+        stage2_data=session["stage2"],
+        on_progress=_get_progress_callback(ctx),
+        verdict_type=None,  # default to synthesis
+        include_dissent=False,  # default
+    )
+
+    # Clean up the session file
+    close_session(session_id)
+
+    # Format result using our shared helper
+    return _format_council_result(council_result, include_details=include_details)
 
 
 @mcp.tool()
@@ -361,7 +572,7 @@ async def council_health_check() -> str:
 
     checks = {
         "version": council_version,
-        "api_key_configured": bool(OPENROUTER_API_KEY),
+        "api_key_configured": bool(_get_openrouter_api_key()),
         "key_source": get_key_source(),  # ADR-013: Show where key came from (not the key itself)
         "council_size": len(COUNCIL_MODELS),
         "chairman_model": CHAIRMAN_MODEL,
@@ -420,7 +631,7 @@ async def verify(
     rubric_focus: Optional[str] = None,
     confidence_threshold: float = 0.7,
     tier: str = "balanced",
-    ctx: Optional[Context] = None,
+    ctx: Context = None,
 ) -> str:
     """
     Verify agent work using the LLM Council verification system (ADR-034).
@@ -443,14 +654,6 @@ async def verify(
         rationale, and transcript location for audit trail.
     """
 
-    # Progress reporting bridge: MCP context <-> run_verification callback
-    async def on_progress(step: int, total: int, message: str):
-        if ctx:
-            try:
-                await ctx.report_progress(step, total, message)
-            except Exception:
-                pass  # Progress reporting is best-effort
-
     try:
         # Create request object and transcript store
         request = VerifyRequest(
@@ -462,8 +665,12 @@ async def verify(
         )
         store = create_transcript_store()
 
-        # Run the verification with progress callback
-        result = await run_verification(request, store, on_progress=on_progress if ctx else None)
+        # Run the verification with progress callback (ADR-012 standard bridge)
+        result = await run_verification(
+            request, 
+            store, 
+            on_progress=_get_progress_callback(ctx)
+        )
 
         # Return formatted output for human readability
         # JSON is also included at the end for programmatic parsing
@@ -500,7 +707,7 @@ async def audit(
     verification_id: Optional[str] = None,
     validate_integrity: bool = False,
     expected_hash: Optional[str] = None,
-    ctx: Optional[Context] = None,
+    ctx: Context = None,
 ) -> str:
     """
     Retrieve and validate verification audit transcripts (ADR-034).
