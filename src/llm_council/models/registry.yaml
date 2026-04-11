@@ -315,6 +315,15 @@ models:
     modalities: ["text"]
     quality_tier: "frontier"
 
+  - id: "deepseek/deepseek-r1"
+    context_window: 64000
+    pricing:
+      prompt: 0.0005
+      completion: 0.002
+    supported_parameters: ["temperature", "top_p", "reasoning"]
+    modalities: ["text"]
+    quality_tier: "frontier"
+
   # ============================================================================
   # Meta/Llama Models (2)
   # ============================================================================

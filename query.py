@@ -18,8 +18,8 @@ async def main():
     parser.add_argument(
         "--confidence",
         choices=["quick", "balanced", "high", "reasoning"],
-        default="high",
-        help="Confidence level (default: high)",
+        default="balanced",
+        help="Confidence level (default: balanced)",
     )
     parser.add_argument("--no-cache", action="store_true", help="Bypass cache")
     parser.add_argument(
@@ -66,8 +66,8 @@ async def main():
             include_dissent=args.dissent,
         )
 
-        print("[*] Stage 2: Peer reviewing and ranking...")
-        print("[*] Stage 3: Synthesizing final consensus...")
+        print("[*] Stage 2: Peer reviewing and ranking responses...")
+        print("[*] Stage 2 complete, synthesizing final consensus...")
 
         synthesis = (
             stage3.get("response", "No synthesis provided.") if isinstance(stage3, dict) else stage3
@@ -90,10 +90,15 @@ async def main():
         # ADR-DA: Display Devil's Advocate Critique if available
         dissent_report = metadata.get("dissent_report")
         if dissent_report:
+            import re
+            # Strip redundant model prefixes or "Dissenting Report:" if present
+            cleaned_report = re.sub(r"^\*\*.*?\*\*:\s*", "", dissent_report)
+            cleaned_report = re.sub(r"^Dissenting Report:\s*", "", cleaned_report, flags=re.IGNORECASE)
+            
             print("\n" + "!" * 50)
-            print("### DEVIL'S ADVOCATE - DISSENTING REPORT")
+            print("### DEVIL'S ADVOCATE - ADVERSARIAL CRITIQUE")
             print("-" * 50)
-            print(dissent_report)
+            print(f"Dissenting Report:\n{cleaned_report}")
             print("!" * 50)
 
         # ADR-CD: Display Constructive Dissent if available

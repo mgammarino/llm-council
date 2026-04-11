@@ -321,6 +321,7 @@ class TestMCPVerifyProgressReporting:
 
         mock_ctx = MagicMock()
         mock_ctx.report_progress = AsyncMock()
+        mock_ctx.info = AsyncMock()
 
         mock_result = {
             "verification_id": "ver_test",
@@ -354,6 +355,7 @@ class TestMCPVerifyProgressReporting:
 
         mock_ctx = MagicMock()
         mock_ctx.report_progress = AsyncMock()
+        mock_ctx.info = AsyncMock()
 
         mock_result = {
             "verification_id": "ver_test",
@@ -380,13 +382,13 @@ class TestMCPVerifyProgressReporting:
 
             await verify(snapshot_id="abc1234", ctx=mock_ctx)
 
-            # ctx.report_progress should have been called with the bridged values
-            progress_calls = [
-                call
-                for call in mock_ctx.report_progress.call_args_list
-                if call[0][2] == "Test message"
-            ]
-            assert len(progress_calls) == 1
+            # ctx.report_progress should have been called with numeric values
+            mock_ctx.report_progress.assert_called_with(1, 7)
+
+            # ctx.info should have been called with the message
+            # Note: ctx.info is called via the _get_progress_callback helper
+            if hasattr(mock_ctx, "info"):
+                mock_ctx.info.assert_called_with("Test message")
 
     @pytest.mark.asyncio
     async def test_verify_works_without_ctx(self):

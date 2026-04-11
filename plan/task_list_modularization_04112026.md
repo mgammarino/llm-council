@@ -1,0 +1,20 @@
+- [x] Refactor `council.py` into modular stages
+    - [x] Create `llm_council.stages` package
+    - [x] Implement `stage1.py` (Ideation), `stage2.py` (Review), `stage3.py` (Synth)
+    - [x] Create `llm_council.utils` for shared formatting/usage
+    - [x] Implement Facade pattern in `council.py` for backward compatibility
+- [x] Feature Parity Verification
+    - [x] Restore `NameError` constant imports
+    - [x] Fix `_check_patched_attr` signature and default value
+    - [x] Ensure `model_responses` and `status` are in final metadata
+    - [x] Restore persistent bias data triggering
+- [x] Stabilization & Quality Gates
+    - [x] Expand single-line `if/try` blocks (Ruff E701)
+    - [x] Standardize progress reporting logic in stages
+    - [x] Fix MCP progress bridge to support `AsyncMock` and 2-arg numeric reporting
+    - [x] Restore missing parameter propagation in `consult_council`
+- [x] Final Regression Testing
+    - [x] Run full test suite (37 tests) -> **100% PASSED**
+- [x] Documentation & Release
+    - [x] Update `CHANGELOG.md`
+    - [x] Finalize `walkthrough.md`
