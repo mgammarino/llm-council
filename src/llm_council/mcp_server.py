@@ -153,7 +153,8 @@ def _get_progress_callback(ctx: Optional[Context]) -> Optional[Callable]:
     if not ctx:
         return None
 
-    import os, sys
+    import os
+    import sys
     in_test = os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
 
     async def on_progress(step: int, total: int, message: str):
@@ -193,7 +194,8 @@ async def consult_council(
     DEPRECATED: Use start_council -> council_review -> council_synthesize instead.
     This monolithic tool is DISABLED for MCP use to ensure real-time progress visibility.
     """
-    import os, sys
+    import os
+    import sys
     in_test = os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules
     
     if ctx is not None and not in_test:

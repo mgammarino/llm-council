@@ -767,8 +767,8 @@ async def run_stage3(
 ) -> Dict[str, Any]:
     """Phase 3: Final synthesis and verdict generation."""
     if verdict_type is None:
-        from llm_council.verdict import VerdictType as VT
-        verdict_type = VT.SYNTHESIS
+        from llm_council.verdict import VerdictType
+        verdict_type = VerdictType.SYNTHESIS
 
     stage1_results = stage1_data["stage1_results"]
     dissent_report = stage1_data["dissent_report"]
