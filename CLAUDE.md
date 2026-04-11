@@ -2,6 +2,11 @@
 
 This file contains technical details, architectural decisions, and important implementation notes for future development sessions.
 
+## Agent Setup
+- **Persistent Memory**: Use Mem0 search (e.g., `tools/agent/search_memory.py`) to retrieve past architectural decisions and shared history.
+- **Project Root**: `c:\git_projects\llm-council`
+- **Ask Paths**: Use `/ask` for context-aware queries regarding the codebase, ADRs, or implementation details.
+
 ## Project Overview
 
 LLM Council is a 3-stage deliberation system where multiple LLMs collaboratively answer user questions. The key innovation is anonymized peer review in Stage 2, preventing models from playing favorites.
@@ -839,3 +844,23 @@ Frontend: Display with tabs + validation UI
 ```
 
 The entire flow is async/parallel where possible to minimize latency.
+
+## Agent Setup (Repomix + Mem0)
+
+This project is optimized for AI assistance using a local-first context and memory setup.
+
+### 📘 Context Packing (Repomix)
+The entire codebase is packed into `repomix-output.md` for high-fidelity global context.
+*   **Generate/Refresh**: Run `repomix` in the root.
+*   **Optimization**: Check `repomix.config.json` for ignore patterns (envs, caches, and build artifacts are excluded).
+
+### 🧠 Persistent Memory (Mem0)
+Across sessions, the agent builds an "experience index" stored in a local Qdrant database (`.mem0_qdrant`).
+*   **Initialize**: `python memory_init.py`
+*   **Add Memory**: `python tools/agent/add_memory.py "Some fact or decision"`
+*   **Search Memory**: `python tools/agent/search_memory.py "Search query"`
+
+### ⚡ Troubleshooting
+*   **Missing Scripts**: Ensure `tools/agent/` contains `search_memory.py` and `add_memory.py`.
+*   **DB Errors**: If vector dimensions mismatch, verify `embedding_model_dims: 384` in the config matches the `all-MiniLM-L6-v2` model.
+*   **Context Window**: Use the context pack in `repomix-output.md` to avoid redundant `view_file` calls for large-scale analysis.
