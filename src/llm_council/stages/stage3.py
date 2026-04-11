@@ -232,7 +232,7 @@ async def run_stage3(
     stage1_data: Dict[str, Any],
     stage2_data: Dict[str, Any],
     on_progress: Optional[Callable] = None,
-    per_model_timeout: int = 30,
+    per_model_timeout: int = 90,
     verdict_type: VerdictType = VerdictType.SYNTHESIS,
     include_dissent: bool = True,
 ) -> Dict[str, Any]:

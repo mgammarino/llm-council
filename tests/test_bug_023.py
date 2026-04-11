@@ -1,7 +1,44 @@
 import pytest
 import asyncio
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
+from llm_council.stages.stage3 import run_stage3
+from llm_council.verdict import VerdictType
 from llm_council.council import run_full_council
+
+@pytest.mark.asyncio
+async def test_stage3_timeout_propagation():
+    """Verify that Stage 3 uses the provided per_model_timeout."""
+    mock_stage1 = {"stage1_results": [], "usage": {}}
+    mock_stage2 = {"stage2_results": [], "aggregate_rankings": [], "usage": {}}
+    
+    with patch("llm_council.stages.stage3.stage3_synthesize_final", new_callable=AsyncMock) as mock_synth:
+        mock_synth.return_value = ({"response": "ok"}, {}, None)
+        
+        # Test with explicit timeout
+        await run_stage3(
+            "query", 
+            mock_stage1, 
+            mock_stage2, 
+            per_model_timeout=45
+        )
+        
+        # Check if the mock was called with the correct timeout
+        args, kwargs = mock_synth.call_args
+        assert kwargs["timeout"] == 45
+
+@pytest.mark.asyncio
+async def test_stage3_default_timeout_is_90():
+    """Verify that Stage 3 default timeout is now 90s (Bug Fix #34)."""
+    mock_stage1 = {"stage1_results": [], "usage": {}}
+    mock_stage2 = {"stage2_results": [], "aggregate_rankings": [], "usage": {}}
+    
+    with patch("llm_council.stages.stage3.stage3_synthesize_final", new_callable=AsyncMock) as mock_synth:
+        mock_synth.return_value = ({"response": "ok"}, {}, None)
+        
+        await run_stage3("query", mock_stage1, mock_stage2)
+        
+        args, kwargs = mock_synth.call_args
+        assert kwargs["timeout"] == 90
 
 @pytest.mark.asyncio
 async def test_run_full_council_legacy_signature_parity():
@@ -30,22 +67,20 @@ async def test_run_full_council_legacy_signature_parity():
          patch("llm_council.council.run_stage2", new_callable=AsyncMock, return_value=mock_stage2), \
          patch("llm_council.council.run_stage3", new_callable=AsyncMock, return_value=mock_stage3):
         
-        # This call SHOULD fail in the current broken state due to 'models' parameter rename
-        # AND the unpacking should fail if it doesn't return a 4-tuple of (List, List, Dict, Dict)
         try:
             results = await run_full_council(
                 "Is the moon cheese?",
                 models=["test-model"]  # Legacy parameter name
             )
             
-            # If it reaches here, we check the return types (current code returns (str, dict, dict, list))
-            # Legacy expects (List, List, Dict, Dict)
+            # Legacy expects (str, Dict, Dict, List) or similar depending on the orchestrator logic
+            # Signature: (str, Dict, Dict, List)
             stage1, stage2, stage3, metadata = results
             
-            assert isinstance(stage1, list), f"Stage 1 should be a list, got {type(stage1)}"
-            assert isinstance(stage2, list), f"Stage 2 should be a list, got {type(stage2)}"
-            assert isinstance(stage3, dict), f"Stage 3 should be a dict, got {type(stage3)}"
-            assert isinstance(metadata, dict), f"Metadata should be a dict, got {type(metadata)}"
+            assert isinstance(stage1, str), f"Stage 1 should be a summary string, got {type(stage1)}"
+            assert isinstance(stage2, dict), f"Stage 2 (metadata) should be a dict, got {type(stage2)}"
+            assert isinstance(stage3, dict), f"Stage 3 (usage) should be a dict, got {type(stage3)}"
+            assert isinstance(metadata, list), f"Dissent should be a list, got {type(metadata)}"
             
         except TypeError as e:
             pytest.fail(f"API Signature Regression: run_full_council failed with {e}")

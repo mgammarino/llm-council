@@ -748,15 +748,15 @@ class CouncilConfig(BaseModel):
 
     models: ModelList = Field(
         default_factory=lambda: [
-            "openai/gpt-5.4",
-            "google/gemini-3.1-pro-preview",
-            "anthropic/claude-opus-4.6",
+            "openai/gpt-4o",
+            "google/gemini-2.5-pro",
+            "anthropic/claude-3.7-sonnet",
             "qwen/qwen-plus",
         ],
         alias="LLM_COUNCIL_MODELS",
     )
     chairman: str = Field(
-        default="google/gemini-3.1-pro-preview",
+        default="google/gemini-2.0-flash-001",
         alias="LLM_COUNCIL_CHAIRMAN",
     )
     synthesis_mode: Literal["consensus", "debate"] = Field(
