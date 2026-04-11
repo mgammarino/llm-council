@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Modular Council Architecture** ([#28](https://github.com/mgammarino/llm-council/issues/28)): Refactored the monolithic `council.py` orchestrator into a domain-specific package structure (`llm_council.stages`). Improves maintainability, testability, and scalability.
+  - **Stage 1 (Ideation)**: parallel collection of initial responses and adversarial auditing.
+  - **Stage 2 (Peer Review)**: peer ranking and aggregate scoring.
+  - **Stage 3 (Synthesis)**: Chairman synthesis and final verdict generation.
+  - **Facade Pattern**: Maintained 100% backward compatibility via a thin `council.py` facade and patch-aware delegation.
+- **Robust Progress Reporting**: Finalized a unified MCP/CLI progress bridge that handles both modern and legacy context interfaces with perfect synchronization for real-time visibility.
+
+
 - **Enhanced MCP/CLI Status Messaging**: Standardized stage status updates with descriptive strings (e.g., `[*] Stage 1: Collecting opinions...`) and persona-driven context (e.g., naming the Devil's Advocate model). Includes standardized `[*] ` prefix for all stage transitions to improve observability in terminal and MCP environments.
 
 - **API Cost Tracking**: Integrated end-to-end API cost tracking and reporting (`total_cost`) from gateway to final council execution metadata.

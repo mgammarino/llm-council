@@ -90,10 +90,15 @@ async def main():
         # ADR-DA: Display Devil's Advocate Critique if available
         dissent_report = metadata.get("dissent_report")
         if dissent_report:
+            import re
+            # Strip redundant model prefixes or "Dissenting Report:" if present
+            cleaned_report = re.sub(r"^\*\*.*?\*\*:\s*", "", dissent_report)
+            cleaned_report = re.sub(r"^Dissenting Report:\s*", "", cleaned_report, flags=re.IGNORECASE)
+            
             print("\n" + "!" * 50)
-            print("### DEVIL'S ADVOCATE - DISSENTING REPORT")
+            print("### DEVIL'S ADVOCATE - ADVERSARIAL CRITIQUE")
             print("-" * 50)
-            print(dissent_report)
+            print(f"Dissenting Report:\n{cleaned_report}")
             print("!" * 50)
 
         # ADR-CD: Display Constructive Dissent if available
