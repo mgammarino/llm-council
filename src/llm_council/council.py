@@ -163,9 +163,13 @@ async def run_full_council(
     models: Optional[List[str]] = None,
     session_id: Optional[str] = None,
     shared_raw_responses: Optional[Dict[str, Any]] = None,
+<<<<<<< HEAD
     webhook_config: Optional[WebhookConfig] = None,
     triage_result: Optional[TriageResult] = None,
 ) -> Tuple[str, Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]:
+=======
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+>>>>>>> origin/master
     """
     Unified entry point for the 3-stage LLM Council pipeline.
     """
@@ -176,6 +180,7 @@ async def run_full_council(
     if session_id is None:
         session_id = str(uuid.uuid4())
 
+<<<<<<< HEAD
     # Initialize Webhook EventBridge if config provided
     event_bridge = None
     if webhook_config:
@@ -184,6 +189,27 @@ async def run_full_council(
         await event_bridge.start()
 
     council_models = models
+=======
+    # --- PHASE 1: IDEATION ---
+    stage1_data = await run_stage1(
+        user_query,
+        on_progress=on_progress,
+        tier_contract=tier_contract,
+        adversarial_mode=adversarial_mode,
+        session_id=session_id,
+        council_models=models,
+        shared_raw_responses=shared_raw_responses,
+    )
+
+    # --- PHASE 2: PEER REVIEW ---
+    stage2_data = await run_stage2(
+        user_query,
+        stage1_data,
+        on_progress=on_progress,
+        tier_contract=tier_contract,
+        council_models=models,
+    )
+>>>>>>> origin/master
 
     try:
         # --- NAVIGATION: LAYER BOUNDARIES (ADR-024) ---
