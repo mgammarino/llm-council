@@ -522,11 +522,15 @@ async def council_synthesize(
             {"error": f"Session is in stage '{session['stage']}', expected 'stage2_complete'."}
         )
 
+    tier_contract = create_tier_contract(session["tier"])
+    per_model_timeout = tier_contract.per_model_timeout_ms // 1000
+
     stage3_data = await run_stage3(
         user_query=session["query"],
         stage1_data=session["stage1"],
         stage2_data=session["stage2"],
         on_progress=_get_progress_callback(ctx),
+        per_model_timeout=per_model_timeout,
         verdict_type=None,
         include_dissent=True,  # Enable dissent injection for synthesis
     )

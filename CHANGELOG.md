@@ -5,16 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.25.0] - 2026-04-10
 
 ### Added
 
-- **Modular Council Architecture** ([#28](https://github.com/mgammarino/llm-council/issues/28)): Refactored the monolithic `council.py` orchestrator into a domain-specific package structure (`llm_council.stages`). Improves maintainability, testability, and scalability.
-  - **Stage 1 (Ideation)**: parallel collection of initial responses and adversarial auditing.
-  - **Stage 2 (Peer Review)**: peer ranking and aggregate scoring.
-  - **Stage 3 (Synthesis)**: Chairman synthesis and final verdict generation.
-  - **Facade Pattern**: Maintained 100% backward compatibility via a thin `council.py` facade and patch-aware delegation.
-- **Robust Progress Reporting**: Finalized a unified MCP/CLI progress bridge that handles both modern and legacy context interfaces with perfect synchronization for real-time visibility.
+- **Unified Modular Council Architecture** ([#28](https://github.com/mgammarino/llm-council/issues/28)): Successfully unified the monolithic orchestrator refactor with functional MCP enhancements.
+  - **Modular Orchestration**: Core logic moved to `src/llm_council/stages/` (Stage 1, 2, 3) for improved maintainability.
+  - **Patch-Aware Gateway**: A specialized `council.py` facade that enables zero-breakage integration by detecting test mocks at runtime and delegating them to modular stages.
+- **ADVERSARIAL CRITIQUE Terminology** ([#26](https://github.com/mgammarino/llm-council/issues/26)): Renamed "Devil's Advocate" to "ADVERSARIAL CRITIQUE" across all system outputs, CLI logs, and MCP status events.
+- **Enhanced MCP Progress Bridge**: Unified status reporting for the 3-stage flow, providing real-time visibility into adversarial audits and peer review phases.
+
+### Fixed
+
+- **Asyncio Handshake Deadlocks**: Resolved race conditions in the MCP server's progress reporting bridge.
+- **Legacy Patching Regressions**: Fixed a regression where legacy tests patching `llm_council.council` were bypassed by the new modular stages.
+- **Synthesis Failures (BUG-023)**: Fixed Stage 3 failures caused by invalid "aspirational" model defaults and 30s timeout regressions (Refs #34).
+- **Robust Progress Reporting**: Finalized a unified MCP/CLI progress bridge.
 
 
 - **Enhanced MCP/CLI Status Messaging**: Standardized stage status updates with descriptive strings (e.g., `[*] Stage 1: Collecting opinions...`) and persona-driven context (e.g., naming the Devil's Advocate model). Includes standardized `[*] ` prefix for all stage transitions to improve observability in terminal and MCP environments.

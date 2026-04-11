@@ -12,8 +12,13 @@ from typing import TYPE_CHECKING, List, Dict, Any, Tuple, Optional, Callable, Aw
 # 1. Core Constants & Config (Centralized)
 from llm_council.constants import (
     MODEL_STATUS_OK,
+    MODEL_STATUS_TIMEOUT,
+    MODEL_STATUS_ERROR,
+    MODEL_STATUS_RATE_LIMITED,
+    TIMEOUT_PER_MODEL_SOFT,
     TIMEOUT_PER_MODEL_HARD,
     TIMEOUT_SYNTHESIS_TRIGGER,
+    TIMEOUT_RESPONSE_DEADLINE,
 )
 from llm_council.config_helpers import (
     _get_council_models,
