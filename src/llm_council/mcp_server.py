@@ -18,6 +18,12 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 # Local imports
+from llm_council.constants import TIMEOUT_PER_MODEL_HARD, TIMEOUT_SYNTHESIS_TRIGGER
+from llm_council.utils.usage import _aggregate_stage_usage
+from llm_council.quality import (
+    calculate_quality_metrics,
+    should_include_quality_metrics,
+)
 from llm_council.council import (
     run_stage1,
     run_stage2,
@@ -137,13 +143,31 @@ def _format_council_result(council_result: Dict[str, Any], include_details: bool
     verdict = metadata.get("verdict")
     if verdict:
         result += "\n### Verdict\n"
-        result += f"**Decision**: {verdict.get('verdict', 'unknown').upper()}\n"
-        result += f"**Confidence**: {verdict.get('confidence', 0):.0%}\n"
-        result += f"**Rationale**: {verdict.get('rationale', 'No rationale provided')}\n"
-        if verdict.get("deadlocked"):
+        # Handle both VerdictResult object and dictionary (ADR-025b abstraction)
+        decision = (
+            verdict.verdict if hasattr(verdict, "verdict") else verdict.get("verdict", "unknown")
+        )
+        confidence = (
+            verdict.confidence if hasattr(verdict, "confidence") else verdict.get("confidence", 0)
+        )
+        rationale = (
+            verdict.rationale
+            if hasattr(verdict, "rationale")
+            else verdict.get("rationale", "No rationale provided")
+        )
+        deadlocked = (
+            verdict.deadlocked if hasattr(verdict, "deadlocked") else verdict.get("deadlocked")
+        )
+        dissent = verdict.dissent if hasattr(verdict, "dissent") else verdict.get("dissent")
+
+        result += f"**Decision**: {decision.upper()}\n"
+        result += f"**Confidence**: {confidence:.0%}\n"
+        result += f"**Rationale**: {rationale}\n"
+
+        if deadlocked:
             result += f"\n> *Note: Council was deadlocked. Chairman cast deciding vote.*\n"
-        if verdict.get("dissent"):
-            result += f"\n**Dissent**: {verdict.get('dissent')}\n"
+        if dissent:
+            result += f"\n**Dissent**: {dissent}\n"
 
     # Add council rankings if available
     aggregate = metadata.get("aggregate_rankings", [])
@@ -202,7 +226,7 @@ def _format_council_result(council_result: Dict[str, Any], include_details: bool
         cleaned_report = re.sub(r"^Dissenting Report:\s*", "", cleaned_report, flags=re.IGNORECASE)
 
         result += "\n" + "!" * 40 + "\n"
-        result += "### DEVIL'S ADVOCATE - ADVERSARIAL CRITIQUE\n"
+        result += "### ADVERSARIAL CRITIQUE (Stage 1B)\n"
         result += "-" * 40 + "\n"
         result += f"Dissenting Report:\n{cleaned_report}\n"
         result += "!" * 40 + "\n"
@@ -498,14 +522,64 @@ async def council_synthesize(
             {"error": f"Session is in stage '{session['stage']}', expected 'stage2_complete'."}
         )
 
-    council_result = await run_stage3(
+    stage3_data = await run_stage3(
         user_query=session["query"],
         stage1_data=session["stage1"],
         stage2_data=session["stage2"],
         on_progress=_get_progress_callback(ctx),
         verdict_type=None,
-        include_dissent=False,
+        include_dissent=True,  # Enable dissent injection for synthesis
     )
+
+    # Reconstruct ADR-012 package for formatting
+    overall_usage = _aggregate_stage_usage(
+        {
+            "stage1": session["stage1"]["usage"],
+            "stage2": session["stage2"]["usage"],
+            "stage3": stage3_data["usage"],
+        }
+    )
+
+    quality_metrics = None
+    if should_include_quality_metrics():
+        stage1_results = session["stage1"]["stage1_results"]
+        stage2_results = session["stage2"]["stage2_results"]
+        aggregate_rankings = session["stage2"]["aggregate_rankings"]
+        label_to_model = session["stage2"]["label_to_model"]
+
+        # Prepare dicts for quality calculation
+        stage1_responses_dict = {r["model"]: {"content": r["response"]} for r in stage1_results}
+        agg_rank_tuples = [
+            (r["model"], r.get("borda_score", 0.0) or 0.0) for r in aggregate_rankings
+        ]
+
+        quality_metrics = calculate_quality_metrics(
+            stage1_responses=stage1_responses_dict,
+            stage2_rankings=stage2_results,
+            stage3_synthesis={"content": stage3_data["chairman_result"]["response"]},
+            aggregate_rankings=agg_rank_tuples,
+            label_to_model=label_to_model,
+        )
+
+    metadata = {
+        "session_id": session_id,
+        "status": "complete",
+        "usage": overall_usage,
+        "quality": quality_metrics,
+        "dissent_report": session["stage1"].get("dissent_report"),
+        "dissent": session["stage2"].get("constructive_dissent"),
+        "verdict": stage3_data.get("verdict_result"),
+        "aggregate_rankings": session["stage2"].get("aggregate_rankings", []),
+        "model_statuses": session["stage1"].get("model_statuses"),
+        "label_to_model": session["stage2"].get("label_to_model"),
+        "stage1_results": session["stage1"].get("stage1_results"),
+    }
+
+    council_result = {
+        "synthesis": stage3_data["chairman_result"]["response"],
+        "metadata": metadata,
+        "model_responses": metadata["model_statuses"],
+    }
 
     close_session(session_id)
 

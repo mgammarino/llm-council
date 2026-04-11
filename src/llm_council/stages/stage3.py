@@ -121,7 +121,7 @@ async def stage3_synthesize_final(
         rankings_context = f"\n\nAGGREGATE RANKINGS (after excluding self-votes):\n{rankings_list}"
 
     if dissent_report:
-        rankings_context += f"\n\nDEVIL'S ADVOCATE CRITIQUE:\n{dissent_report}\n\nNote: Consider the critique above when synthesizing the final answer to ensure all blind spots are addressed."
+        rankings_context += f"\n\nADVERSARIAL CRITIQUE (Stage 1B):\n{dissent_report}\n\nNote: Consider the critique above when synthesizing the final answer to ensure all blind spots are addressed."
 
     if verdict_type in (VerdictType.BINARY, VerdictType.TIE_BREAKER):
         top_candidates = ""

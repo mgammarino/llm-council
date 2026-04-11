@@ -10,7 +10,11 @@ import uuid
 from typing import TYPE_CHECKING, List, Dict, Any, Tuple, Optional, Callable, Awaitable
 
 # 1. Core Constants & Config (Centralized)
-from llm_council.constants import TIMEOUT_PER_MODEL_HARD, TIMEOUT_SYNTHESIS_TRIGGER
+from llm_council.constants import (
+    MODEL_STATUS_OK,
+    TIMEOUT_PER_MODEL_HARD,
+    TIMEOUT_SYNTHESIS_TRIGGER,
+)
 from llm_council.config_helpers import (
     _get_council_models,
     _get_chairman_model,
@@ -212,8 +216,8 @@ async def run_full_council(
         "models": [r["model"] for r in stage1_data["stage1_results"]],
         "usage": overall_usage,
         "quality": quality_metrics,
-        "dissent": stage1_data.get("dissent_report"),
-        "constructive_dissent": stage2_data.get("constructive_dissent"),
+        "dissent_report": stage1_data.get("dissent_report"),
+        "dissent": stage2_data.get("constructive_dissent"),
         "verdict": stage3_data.get("verdict_result"),
         "rankings": stage2_data["aggregate_rankings"],
         "model_statuses": stage1_data.get("model_statuses"),

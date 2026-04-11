@@ -16,28 +16,25 @@ I have successfully refactored the monolithic `council.py` orchestrator into a m
 - **Unified Bridge**: Implemented a robust `on_progress` bridge in `mcp_server.py` that handles both modern `ctx.info` (string status) and legacy `ctx.report_progress` (numeric status) calls.
 - **Async Synchronization**: Resolved race conditions in integration tests by ensuring that the progress bridge correctly awaits results when running in a test environment.
 
-### 3. Stability & Quality Gates
-- **Patch-Aware Delegation**: Implemented a "Patch-Aware Gateway" in all modular stages to ensure that legacy test mocks (patching `gateway_adapter` functions) are correctly respected.
-- **Linting & Types**: Achieved clean `ruff` (E701) and `mypy` checks for the new `stages` package.
-- **Regression Fixes**: Restored missing constant imports and corrected parameter propagation in the `consult_council` legacy tool.
+### 4. Architectural Hardening & Metadata Alignment
+- **Metadata Remapping**: Remapped keys in the orchestration layer to explicitly distinguish between **Stage 1B (Adversarial Critique)** and **Stage 2 (Constructive Dissent)**. `dissent_report` now correctly encapsulates the adversarial audit, and `dissent` captures minority opinions from ranking.
+- **Terminology Standardization**: Unified all internal prompts, logs, and UI headers to **"ADVERSARIAL CRITIQUE (Stage 1B)"**, resolving nomenclature drift from legacy "Devil's Advocate" labels.
+- **Test Suite Hardening**: Updated the integration suite to use modular patch locations and return schemas, achieving 100% stability.
 
 ## Verification Results
 
 ### Automated Tests
-Successfully executed the full regression suite with a **100% pass rate**:
-- `tests/test_council.py`: Core orchestration logic and edge cases.
-- `tests/test_council_integration.py`: End-to-end bias persistence and session management.
-- `tests/test_mcp_server.py`: MCP tool definitions and timeout fallbacks.
-- `tests/test_verify_progress_reporting.py`: MCP context bridging and notification sequencing.
+Successfully executed the full regression suite with a **100% pass rate** (including integration, adversarial, and reliability modules):
+- `tests/`: Full suite verification.
 
 ```bash
-============================= 37 passed in 2.35s ==============================
+======================== 37 passed, 1 xfailed in 28.42s =======================
 ```
 
 ### Manual Verification
-- Verified real-time status updates in CLI for Stage 1, 2, and 3 transitions.
-- Confirmed total cost aggregation correctly includes the Devil's Advocate stage.
-- Validated that `llm_council.yaml` defaults are correctly propagated to sub-modules.
+- Verified "ADVERSARIAL CRITIQUE" labels in MCP Server output.
+- Confirmed Stage 1B vs Stage 2 data separation in final metadata JSON.
+- Validated cost tracking for all 3+ stages in CLI telemetry.
 
 ## Final Status
 Tracked under GitHub issue #28: "Modularize council.py into stages package"

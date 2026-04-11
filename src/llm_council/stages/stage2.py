@@ -39,6 +39,7 @@ from llm_council.rubric import (
 )
 from llm_council.voting import VotingAuthority, get_vote_weight
 from llm_council.bias_persistence import persist_session_bias_data
+from llm_council.dissent import extract_dissent_from_stage2
 
 
 def _get_adversarial_critique_block(dissent_report: Optional[str]) -> str:
@@ -585,8 +586,6 @@ async def run_stage2(
     )
 
     # ADR-CD: Extract Constructive Dissent (minority opinions)
-    from llm_council.dissent import extract_dissent_from_stage2
-
     constructive_dissent = extract_dissent_from_stage2(stage2_results)
 
     voting_authorities = None
