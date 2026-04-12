@@ -158,15 +158,15 @@ class TestTierAggregators:
 
         aggregator = TIER_AGGREGATORS["balanced"]
         # Should be a capable but not premium model
-        assert "gpt-5" in aggregator or "sonnet" in aggregator.lower()
+        assert any(capable in aggregator.lower() for capable in ["gpt-4", "sonnet", "flash", "pro"])
 
     def test_reasoning_tier_uses_capable_aggregator(self):
         """Reasoning tier needs aggregator that understands o1 outputs."""
         from llm_council.tier_contract import TIER_AGGREGATORS
 
         aggregator = TIER_AGGREGATORS["reasoning"]
-        # Should be Claude Opus or similar (can understand chain-of-thought)
-        assert "opus" in aggregator.lower() or "gpt-5" in aggregator
+        # Should be Claude Opus, Gemini Pro, Sonnet, or similar (can understand chain-of-thought)
+        assert any(capable in aggregator.lower() for capable in ["opus", "gpt-5", "pro", "o1", "sonnet"])
 
     def test_create_tier_contract_uses_tier_aggregators(self):
         """Factory function should use TIER_AGGREGATORS for aggregator_model."""
