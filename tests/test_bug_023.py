@@ -73,11 +73,14 @@ async def test_run_full_council_legacy_signature_parity():
                 models=["test-model"]  # Legacy parameter name
             )
             
-            # Legacy expects (str, Dict, Dict, List) or similar depending on the orchestrator logic
-            # Signature: (List, List, Dict, Dict)
+            # Orchestrator Return Signature: (List, List, Dict, Dict)
+            # 1: stage1_data (List of results)
+            # 2: rankings (List of strings)
+            # 3: usage_stats (Dict)
+            # 4: metadata (Dict)
             stage1, stage2, stage3, metadata = results
             
-            assert isinstance(stage1, (str, list)), f"Stage 1 should be a summary or model list, got {type(stage1)}"
+            assert isinstance(stage1, list), f"Stage 1 should be a model results list, got {type(stage1)}"
             assert isinstance(stage2, list), f"Stage 2 (rankings) should be a list, got {type(stage2)}"
             assert isinstance(stage3, dict), f"Stage 3 (usage) should be a dict, got {type(stage3)}"
             assert isinstance(metadata, dict), f"Metadata should be a dict, got {type(metadata)}"
