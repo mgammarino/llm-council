@@ -53,7 +53,7 @@ class TestAuditionEventEmission:
 
     def test_record_session_emits_state_transition_on_promotion(self):
         """Recording a session that causes promotion emits transition event."""
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         from llm_council.audition.tracker import AuditionTracker, _reset_tracker
         from llm_council.audition.types import (
@@ -72,8 +72,8 @@ class TestAuditionEventEmission:
             model_id="test/model",
             state=AuditionState.SHADOW,
             session_count=9,  # One more will trigger promotion
-            first_seen=datetime.now() - timedelta(days=5),  # Meets min_days
-            last_seen=datetime.now(),
+            first_seen=datetime.now(timezone.utc) - timedelta(days=5),  # Meets min_days
+            last_seen=datetime.now(timezone.utc),
         )
         tracker._cache["test/model"] = status
 
@@ -114,7 +114,7 @@ class TestAuditionEventEmission:
 
     def test_quarantine_emits_quarantine_triggered_event(self):
         """Triggering quarantine emits quarantine event."""
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         from llm_council.audition.tracker import AuditionTracker, _reset_tracker
         from llm_council.audition.types import (
@@ -134,8 +134,8 @@ class TestAuditionEventEmission:
             model_id="test/model",
             state=AuditionState.SHADOW,
             session_count=5,
-            first_seen=datetime.now() - timedelta(days=1),
-            last_seen=datetime.now(),
+            first_seen=datetime.now(timezone.utc) - timedelta(days=1),
+            last_seen=datetime.now(timezone.utc),
             consecutive_failures=3,  # After failure: 4 > 3 triggers quarantine
         )
         tracker._cache["test/model"] = status
@@ -155,7 +155,7 @@ class TestAuditionEventEmission:
 
     def test_graduation_emits_graduation_complete_event(self):
         """Graduating to FULL emits graduation complete event."""
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         from llm_council.audition.tracker import AuditionTracker, _reset_tracker
         from llm_council.audition.types import (
@@ -174,8 +174,8 @@ class TestAuditionEventEmission:
             model_id="test/model",
             state=AuditionState.EVALUATION,
             session_count=49,  # One more hits 50
-            first_seen=datetime.now() - timedelta(days=30),
-            last_seen=datetime.now(),
+            first_seen=datetime.now(timezone.utc) - timedelta(days=30),
+            last_seen=datetime.now(timezone.utc),
             quality_percentile=0.80,  # Above 0.75 threshold
         )
         tracker._cache["test/model"] = status

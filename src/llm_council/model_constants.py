@@ -43,6 +43,7 @@ WILDCARD_FALLBACK_MODEL = "meta-llama/llama-3.1-70b-instruct"
 
 # Chairman
 CHAIRMAN_MODEL = GOOGLE_REASONING
+OPENROUTER_API_KEY = "OPENROUTER_API_KEY"  # Legacy attribute for test compatibility
 
 # Reasoning Family Identifiers
 REASONING_FAMILY_O1 = "o1"

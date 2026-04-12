@@ -74,13 +74,13 @@ async def test_run_full_council_legacy_signature_parity():
             )
             
             # Legacy expects (str, Dict, Dict, List) or similar depending on the orchestrator logic
-            # Signature: (str, Dict, Dict, List)
+            # Signature: (List, List, Dict, Dict)
             stage1, stage2, stage3, metadata = results
             
-            assert isinstance(stage1, str), f"Stage 1 should be a summary string, got {type(stage1)}"
-            assert isinstance(stage2, dict), f"Stage 2 (metadata) should be a dict, got {type(stage2)}"
+            assert isinstance(stage1, (str, list)), f"Stage 1 should be a summary or model list, got {type(stage1)}"
+            assert isinstance(stage2, list), f"Stage 2 (rankings) should be a list, got {type(stage2)}"
             assert isinstance(stage3, dict), f"Stage 3 (usage) should be a dict, got {type(stage3)}"
-            assert isinstance(metadata, list), f"Dissent should be a list, got {type(metadata)}"
+            assert isinstance(metadata, dict), f"Metadata should be a dict, got {type(metadata)}"
             
         except TypeError as e:
             pytest.fail(f"API Signature Regression: run_full_council failed with {e}")

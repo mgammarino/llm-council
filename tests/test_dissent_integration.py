@@ -37,6 +37,6 @@ async def test_dissent_metadata_integration():
         m2.return_value = (mock_stage2, {"L1": {"model": "m2"}}, mock_usage)
         m3.return_value = (mock_stage3, mock_usage, None)
 
-        _, metadata, _, _ = await run_full_council(user_query, include_dissent=True)
+        _, _, _, metadata = await run_full_council(user_query, include_dissent=True)
 
         assert metadata.get("dissent") == "This is a minority opinion."

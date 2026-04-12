@@ -21,20 +21,28 @@ class TestTelemetryUnification:
 
         # Mock LLM interactions
         with (
-            patch("llm_council.council.stage1_collect_responses_with_status") as mock_stage1,
-            patch("llm_council.council.stage2_collect_rankings") as mock_stage2,
-            patch("llm_council.council.stage3_synthesize_final") as mock_stage3,
+            patch("llm_council.council.run_stage1", new_callable=AsyncMock) as mock_stage1,
+            patch("llm_council.council.run_stage2", new_callable=AsyncMock) as mock_stage2,
+            patch("llm_council.council.run_stage3", new_callable=AsyncMock) as mock_stage3,
             patch("llm_council.council.persist_session_bias_data", mock_persist),
             patch("llm_council.council.get_telemetry", return_value=mock_telemetry_client),
         ):
             # Setup minimal working mocks
-            mock_stage1.return_value = (
-                [{"model": "m", "response": "r"}],
-                {},
-                {"m": {"status": "ok"}},
-            )
-            mock_stage2.return_value = ([], {}, {})
-            mock_stage3.return_value = ({"response": "synthesis"}, {}, None)
+            mock_stage1.return_value = {
+                "stage1_results": [{"model": "m", "response": "r"}],
+                "usage": {},
+                "model_statuses": {"m": {"status": "ok"}},
+            }
+            mock_stage2.return_value = {
+                "stage2_results": [],
+                "aggregate_rankings": [],
+                "label_to_model": {},
+                "usage": {},
+            }
+            mock_stage3.return_value = {
+                "chairman_result": {"response": "synthesis"},
+                "usage": {},
+            }
 
             # Run the council
             await run_council_with_fallback("test query")
