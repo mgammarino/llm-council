@@ -373,7 +373,7 @@ async def council_health_check() -> str:
     if checks["api_key_configured"]:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                api_key = model_constants.OPENROUTER_API_KEY
+                api_key = _get_openrouter_api_key()
                 headers = {
                     "Authorization": f"Bearer {api_key}",
                     "HTTP-Referer": "https://github.com/mgammarino/llm-council",
