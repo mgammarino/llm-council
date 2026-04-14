@@ -1,6 +1,7 @@
 """Stage 3: synthesis and final verdict generation."""
 
 from typing import List, Dict, Any, Tuple, Optional, Callable
+from llm_council.layer_contracts import LayerEventType
 
 from llm_council.gateway_adapter import (
     query_model as _orig_query_model,

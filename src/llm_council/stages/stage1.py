@@ -18,6 +18,7 @@ from llm_council.constants import (
     MODEL_STATUS_ERROR,
 )
 from llm_council.unified_config import get_config
+from llm_council.layer_contracts import LayerEventType
 from llm_council.config_helpers import (
     _get_council_models,
     _get_adversarial_mode,

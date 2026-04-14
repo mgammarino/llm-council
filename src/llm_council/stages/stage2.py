@@ -532,7 +532,7 @@ def emit_shadow_vote_events(
     consensus_winner: Optional[str] = None,
 ) -> None:
     """Emit FRONTIER_SHADOW_VOTE events for each shadow vote."""
-    from .layer_contracts import LayerEventType, emit_layer_event
+    from llm_council.layer_contracts import LayerEventType, emit_layer_event
 
     for vote in shadow_votes:
         reviewer = vote.get("reviewer", "unknown")

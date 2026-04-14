@@ -19,6 +19,7 @@ if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
 # Local imports
+from .model_constants import OPENROUTER_API_KEY
 from llm_council.constants import TIMEOUT_PER_MODEL_HARD, TIMEOUT_SYNTHESIS_TRIGGER
 from llm_council.utils.usage import _aggregate_stage_usage
 from llm_council.quality import (
