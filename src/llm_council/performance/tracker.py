@@ -291,3 +291,64 @@ class InternalPerformanceTracker:
         percentile = beaten_or_tied / len(scores_list)
 
         return percentile
+
+    def get_recent_traffic_shares(self, window_size: int = 100) -> dict[str, float]:
+        """Calculate recent model traffic share for anti-herding logic.
+
+        Traffic Share = (number of times model was selected) / (total model slots).
+        Calculated over the last `window_size` council sessions.
+
+        Args:
+            window_size: Number of recent council sessions to include.
+
+        Returns:
+            Dict mapping model_id to traffic share percentage (0.0 - 1.0)
+        """
+        # Simple TTL caching (5 minutes) to avoid repetitive disk I/O
+        # Using a primitive cache on the instance for simplicity
+        import time
+        if not hasattr(self, "_usage_cache"):
+            self._usage_cache = {}
+
+        now = time.time()
+        cache_key = f"traffic_{window_size}"
+        if cache_key in self._usage_cache:
+            entry = self._usage_cache[cache_key]
+            if now - entry["timestamp"] < 300:  # 5 minute TTL
+                return entry["data"]
+
+        # Read historical records
+        # Use a large max_days to ensure we get enough sessions for the window
+        all_records = read_performance_records(self.store_path, max_days=7)
+        if not all_records:
+            return {}
+
+        # Group records by session_id to properly count "Last N sessions"
+        sessions: dict[str, List[ModelSessionMetric]] = {}
+        # Records are already sorted by timestamp (oldest first)
+        for record in all_records:
+            if record.session_id not in sessions:
+                sessions[record.session_id] = []
+            sessions[record.session_id].append(record)
+
+        # Get the IDs of the most recent N sessions
+        recent_session_ids = list(sessions.keys())[-window_size:]
+
+        # Count total slots and per-model occurrences in those sessions
+        total_slots = 0
+        model_counts: dict[str, int] = {}
+
+        for sid in recent_session_ids:
+            for record in sessions[sid]:
+                total_slots += 1
+                model_counts[record.model_id] = model_counts.get(record.model_id, 0) + 1
+
+        # Calculate shares
+        shares: dict[str, float] = {}
+        if total_slots > 0:
+            for model_id, count in model_counts.items():
+                shares[model_id] = count / total_slots
+
+        # Update cache
+        self._usage_cache[cache_key] = {"timestamp": now, "data": shares}
+        return shares
