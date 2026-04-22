@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP Feature Parity Upgrade ([#58](https://github.com/mgammarino/llm-council/issues/58))**: Exposed advanced orchestration parameters to the MCP tool layer.
+  - New parameters for `start_council`: `model_count` (override tier default), `bypass_cache`, and `allow_preview`.
+  - New parameters for `council_synthesize`: `verdict_type` (`synthesis`, `binary`, `tie_breaker`) and `include_dissent`.
+  - Full session persistence for all new configuration flags across the 3-stage flow.
+  - Enhanced docstrings for AI-client tool discovery.
+
 ### Changed
 
 - **Default Council Tier (ADR-032 Alignment)**: Migrated the default confidence tier from `high` to `balanced`.

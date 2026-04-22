@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, List, Optional, Set
 from .. import model_constants as mc
 
 from .types import ModelInfo, QualityTier
+from ..performance.integration import get_tracker
 
 if TYPE_CHECKING:
     from .registry import ModelRegistry
@@ -213,6 +214,10 @@ def _create_candidate_from_info(info: ModelInfo, tier: str) -> "ModelCandidate":
     else:
         cost_score = 1.0  # Free = best score
 
+    # Fetch recent traffic data from performance tracker
+    tracker = get_tracker()
+    traffic_shares = tracker.get_recent_traffic_shares() if tracker else {}
+
     return ModelCandidate(
         model_id=info.id,
         latency_score=0.8,  # Estimated, will be refined with runtime data
@@ -220,7 +225,7 @@ def _create_candidate_from_info(info: ModelInfo, tier: str) -> "ModelCandidate":
         quality_score=quality_score,
         availability_score=1.0,  # Available since in registry
         diversity_score=0.5,  # Will be calculated during selection
-        recent_traffic=0.1,  # Default low traffic
+        recent_traffic=traffic_shares.get(info.id, 0.0),  # Use real traffic data
     )
 
 

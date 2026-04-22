@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from ..tier_contract import _get_tier_model_pools
 from .types import QualityTier
+from ..performance.integration import get_tracker
 
 if TYPE_CHECKING:
     from .protocol import MetadataProvider
@@ -466,6 +467,9 @@ def _create_candidates_from_pool(pool: List[str], tier: str) -> List[ModelCandid
     Returns:
         List of ModelCandidate objects
     """
+    # Fetch recent traffic data from performance tracker
+    tracker = get_tracker()
+    traffic_shares = tracker.get_recent_traffic_shares() if tracker else {}
     candidates = []
 
     for model_id in pool:
@@ -478,7 +482,7 @@ def _create_candidates_from_pool(pool: List[str], tier: str) -> List[ModelCandid
             quality_score=_estimate_quality_score(model_id, tier),
             availability_score=0.95,  # Assume high availability for static pool
             diversity_score=0.5,  # Neutral diversity
-            recent_traffic=0.0,  # No traffic data for static
+            recent_traffic=traffic_shares.get(model_id, 0.0),  # Use real traffic data
         )
         candidates.append(candidate)
 

@@ -165,12 +165,19 @@ def _is_model_intelligence_enabled() -> bool:
     return value in {"true", "1", "yes", "on"}
 
 
-def _get_allowed_models(tier: str, task_domain: str | None = None) -> list[str]:
+def _get_allowed_models(
+    tier: str,
+    task_domain: str | None = None,
+    count: int | None = None,
+    allow_preview: bool = False,
+) -> list[str]:
     """Get allowed models for a tier, using dynamic selection if enabled.
 
     Args:
         tier: Confidence tier
         task_domain: Optional domain hint for selection
+        count: Optional number of models to select (ADR-026/028)
+        allow_preview: Whether to allow preview/latest models (ADR-027)
 
     Returns:
         List of model IDs
@@ -179,16 +186,30 @@ def _get_allowed_models(tier: str, task_domain: str | None = None) -> list[str]:
         # Lazy import to avoid circular dependencies
         from .metadata.selection import select_tier_models
 
-        return select_tier_models(tier=tier, task_domain=task_domain)
+        # Pass through count and allow_preview to the selection logic
+        kwargs = {}
+        if count is not None:
+            kwargs["count"] = count
+        if allow_preview:
+            kwargs["allow_preview"] = True
+
+        return select_tier_models(tier=tier, task_domain=task_domain, **kwargs)
 
     # Fall back to static pools
     pools = _get_tier_model_pools()
-    return pools[tier]
+    models = pools.get(tier, pools.get("high", []))
+
+    # If static pool, respect the count request if provided
+    if count is not None:
+        return models[:count]
+    return models
 
 
 def create_tier_contract(
     tier: str,
     task_domain: str | None = None,
+    model_count: int | None = None,
+    allow_preview: bool = False,
 ) -> TierContract:
     """Factory function to create a TierContract from a confidence tier.
 
@@ -197,6 +218,9 @@ def create_tier_contract(
         task_domain: Optional domain hint for model selection (e.g., 'coding',
                      'creative', 'reasoning'). Used when model intelligence is
                      enabled (ADR-026).
+        model_count: Optional number of models to select for the council.
+                     Overrides default tier size.
+        allow_preview: Whether to allow preview/latest models in the pool (ADR-027).
 
     Returns:
         TierContract with appropriate defaults for the tier
@@ -260,7 +284,12 @@ def create_tier_contract(
     config = tier_configs[tier_lower]
 
     # Get allowed models - uses dynamic selection if intelligence enabled (ADR-026)
-    allowed_models = _get_allowed_models(tier_lower, task_domain)
+    allowed_models = _get_allowed_models(
+        tier_lower,
+        task_domain=task_domain,
+        count=model_count,
+        allow_preview=allow_preview,
+    )
 
     # Get reasoning config if model intelligence is enabled (ADR-026 Phase 2)
     reasoning_config = None

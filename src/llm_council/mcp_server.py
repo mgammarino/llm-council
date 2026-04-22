@@ -383,7 +383,12 @@ async def council_health_check() -> str:
                 )
                 if credit_resp.status_code == 200:
                     data = credit_resp.json().get("data", {})
-                    checks["account_credits"] = f"${data.get('total_credits', 0):.2f}"
+                    total = data.get("total_credits", 0)
+                    usage = data.get("total_usage", 0)
+                    remaining = total - usage
+                    checks["account_credits"] = f"${remaining:.2f} (Total: ${total:.2f}, Usage: ${usage:.2f})"
+                elif credit_resp.status_code == 402:
+                    checks["account_credits"] = "Monthly Limit Reached (402)"
                 else:
                     checks["account_credits"] = f"Error: {credit_resp.status_code}"
         except Exception as e:
@@ -399,8 +404,8 @@ async def council_health_check() -> str:
                 timeout=10.0,
             )
 
-            # ADR-039: Fallback for 403 (Forbidden) on specific models
-            if response["status"] == "auth_error" and "403" in str(response.get("error", "")):
+            # ADR-039: Fallback for 403 (Forbidden) or 402 (Payment Required) on specific models
+            if response["status"] in ("auth_error", "error") and any(code in str(response.get("error", "")) for code in ("403", "402")):
                 # Try a widely-available "lite" model to verify API key validity
                 fallback_model = model_constants.OPENAI_QUICK
                 fallback_response = await query_model_with_status(
@@ -413,7 +418,7 @@ async def council_health_check() -> str:
                     response = fallback_response
                     test_model = fallback_model
                     checks["ready_warning"] = (
-                        f"Chairman model ({CHAIRMAN_MODEL}) is restricted (403). Using {fallback_model} for verification."
+                        f"Chairman model ({CHAIRMAN_MODEL}) is restricted. Using {fallback_model} for verification."
                     )
                 else:
                     # Both models failed - likely a major auth issue
@@ -455,12 +460,23 @@ async def council_health_check() -> str:
 async def start_council(
     query: str,
     confidence: str = "balanced",
+    model_count: Optional[int] = None,
     adversarial_mode: bool = False,
+    bypass_cache: bool = False,
+    allow_preview: bool = False,
     ctx: Context = None,
 ) -> str:
     """
     Phase 1: Begin a council deliberation. Runs Stage 1 (individual opinions)
     and optionally Stage 1B (Devil's Advocate).
+
+    Args:
+        query: The prompt or question to deliberate on.
+        confidence: Desired quality tier ('quick', 'balanced', 'high', 'reasoning').
+        model_count: Optional number of models to use (overrides tier default).
+        adversarial_mode: Enable the Stage 1B 'Devil's Advocate' audit.
+        bypass_cache: Force fresh responses from providers (skip local cache).
+        allow_preview: Enable use of experimental/preview models (ADR-027).
 
     CRITICAL: This returns a session_id. You MUST call council_review(session_id=...)
     immediately after this tool to continue. DO NOT skip to council_synthesize.
@@ -469,7 +485,11 @@ async def start_council(
 
     tier_pools = _get_tier_model_pools()
     tier = confidence if confidence in tier_pools else "high"
-    tier_contract = create_tier_contract(tier)
+    tier_contract = create_tier_contract(
+        tier,
+        model_count=model_count,
+        allow_preview=allow_preview,
+    )
     tier_config = _get_tier_timeout(tier)
 
     stage1_data = await run_stage1(
@@ -478,12 +498,16 @@ async def start_council(
         per_model_timeout=tier_config.get("per_model", 90),
         tier_contract=tier_contract,
         adversarial_mode=adversarial_mode,
+        bypass_cache=bypass_cache,  # Propagate cache bypass
     )
 
     session_id = create_session(
         query=query,
         tier=tier,
         confidence=confidence,
+        model_count=model_count,
+        allow_preview=allow_preview,
+        adversarial_mode=adversarial_mode,
         stage="stage1_complete",
         stage1=stage1_data,
     )
@@ -523,7 +547,11 @@ async def council_review(session_id: str, ctx: Context = None) -> str:
         user_query=session["query"],
         stage1_data=session["stage1"],
         on_progress=_get_progress_callback(ctx),
-        tier_contract=create_tier_contract(session["tier"]),
+        tier_contract=create_tier_contract(
+            session["tier"],
+            model_count=session.get("model_count"),
+            allow_preview=session.get("allow_preview", False),
+        ),
     )
 
     try:
@@ -553,11 +581,19 @@ async def council_review(session_id: str, ctx: Context = None) -> str:
 @mcp.tool()
 async def council_synthesize(
     session_id: str,
+    verdict_type: str = "synthesis",
+    include_dissent: bool = True,
     include_details: bool = False,
     ctx: Context = None,
 ) -> str:
     """
     Phase 3: Final step — Runs Stage 3 Chairman synthesis on a reviewed council session.
+
+    Args:
+        session_id: The ID returned by start_council.
+        verdict_type: How the chairman should resolve the query ('synthesis', 'binary', 'tie_breaker').
+        include_dissent: Inject minority opinions into the final synthesis (ADR-DA).
+        include_details: Whether to return full model responses in the metadata.
 
     CRITICAL: This tool ONLY works after council_review() has successfully completed.
     Returns the final synthesized verdict and cleans up the session.
@@ -572,8 +608,14 @@ async def council_synthesize(
             {"error": f"Session is in stage '{session['stage']}', expected 'stage2_complete'."}
         )
 
-    tier_contract = create_tier_contract(session["tier"])
+    tier_contract = create_tier_contract(
+        session["tier"],
+        model_count=session.get("model_count"),
+        allow_preview=session.get("allow_preview", False),
+    )
     per_model_timeout = tier_contract.per_model_timeout_ms // 1000
+
+    from llm_council.verdict import verdict_type_from_string
 
     stage3_data = await run_stage3(
         user_query=session["query"],
@@ -581,8 +623,8 @@ async def council_synthesize(
         stage2_data=session["stage2"],
         on_progress=_get_progress_callback(ctx),
         per_model_timeout=per_model_timeout,
-        verdict_type=None,
-        include_dissent=True,  # Enable dissent injection for synthesis
+        verdict_type=verdict_type_from_string(verdict_type),
+        include_dissent=include_dissent,
     )
 
     # Reconstruct ADR-012 package for formatting

@@ -21,6 +21,14 @@ Mem0 stores architectural decisions and "lessons learned" across sessions in a l
 *   **Registration**: Run `python memory_init.py` (seeds basic context) or ask the agent to store a fact.
 *   **Recall**: Ask the agent to search memory for past decisions or technical context.
 
+## 🧠 3. The Memory Persistence Protocol (Closing the Task)
+
+To prevent "Digital Dementia" across sessions, the agent MUST follow this protocol before ending a significant research or implementation task:
+
+1.  **Synthesize**: Identify 1-3 "Hard-won" facts (e.g., architectural 'Why', hidden config dependencies, or naming preferences).
+2.  **Verify**: Propose these facts to the user: *"I've identified these key insights for long-term memory. Shall I commit them to Mem0?"*
+3.  **Commit**: Once approved, run the Mem0 storage logic to ensure these facts are available for any future AI sessions (even in new chat windows).
+
 ---
 
 ## 🕵️ How to Verify Agent Usage
