@@ -404,8 +404,8 @@ async def council_health_check() -> str:
                 timeout=10.0,
             )
 
-            # ADR-039: Fallback for 403 (Forbidden) on specific models
-            if response["status"] == "auth_error" and "403" in str(response.get("error", "")):
+            # ADR-039: Fallback for 403 (Forbidden) or 402 (Payment Required) on specific models
+            if response["status"] in ("auth_error", "error") and any(code in str(response.get("error", "")) for code in ("403", "402")):
                 # Try a widely-available "lite" model to verify API key validity
                 fallback_model = model_constants.OPENAI_QUICK
                 fallback_response = await query_model_with_status(
