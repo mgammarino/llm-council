@@ -418,7 +418,7 @@ async def council_health_check() -> str:
                     response = fallback_response
                     test_model = fallback_model
                     checks["ready_warning"] = (
-                        f"Chairman model ({CHAIRMAN_MODEL}) is restricted (403). Using {fallback_model} for verification."
+                        f"Chairman model ({CHAIRMAN_MODEL}) is restricted. Using {fallback_model} for verification."
                     )
                 else:
                     # Both models failed - likely a major auth issue
