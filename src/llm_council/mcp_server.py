@@ -552,6 +552,7 @@ async def council_review(session_id: str, ctx: Context = None) -> str:
             model_count=session.get("model_count"),
             allow_preview=session.get("allow_preview", False),
         ),
+        bypass_cache=session.get("bypass_cache", False),
     )
 
     try:
@@ -625,6 +626,7 @@ async def council_synthesize(
         per_model_timeout=per_model_timeout,
         verdict_type=verdict_type_from_string(verdict_type),
         include_dissent=include_dissent,
+        bypass_cache=session.get("bypass_cache", False),
     )
 
     # Reconstruct ADR-012 package for formatting

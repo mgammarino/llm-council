@@ -33,6 +33,7 @@ async def quick_synthesis(
     user_query: str,
     model_responses: Dict[str, Dict[str, Any]],
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Tuple[str, Dict[str, float]]:
     """Generate a quick synthesis from partial responses (ADR-012 fallback)."""
     successful = {
@@ -71,6 +72,7 @@ and highlight any important insights. Be clear that this is based on partial dat
         timeout=15.0,
         disable_tools=True,
         council_id=council_id,
+        bypass_cache=bypass_cache,
     )
 
     usage = {
@@ -101,6 +103,7 @@ async def stage3_synthesize_final(
     timeout: float = 120.0,
     session_id: Optional[str] = None,
     dissent_report: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Tuple[Dict[str, Any], Dict[str, float], Optional[VerdictResult]]:
     """Stage 3: Chairman synthesizes final response."""
     stage1_text = "\n\n".join(
@@ -169,7 +172,21 @@ STAGE 2 - Peer Rankings:
         disable_tools=True,
         timeout=timeout,
         council_id=session_id,
+        bypass_cache=bypass_cache,
     )
+
+    # ADR-039: Fallback for restricted Chairman models
+    if response is None:
+        from llm_council import model_constants
+        fallback_model = model_constants.OPENAI_QUICK
+        response = await query_model(
+            fallback_model,
+            messages,
+            disable_tools=True,
+            timeout=timeout,
+            council_id=session_id,
+            bypass_cache=bypass_cache,
+        )
 
     total_usage = {
         "prompt_tokens": 0.0,
@@ -236,6 +253,7 @@ async def run_stage3(
     per_model_timeout: int = 90,
     verdict_type: VerdictType = VerdictType.SYNTHESIS,
     include_dissent: bool = True,
+    bypass_cache: bool = False,
 ) -> Dict[str, Any]:
     """Phase 3 Orchestrator: Chairman synthesis and final verdict generation."""
     stage1_results = stage1_data["stage1_results"]
@@ -266,6 +284,7 @@ async def run_stage3(
         timeout=per_model_timeout,
         session_id=session_id,
         dissent_report=dissent_report if include_dissent else None,
+        bypass_cache=bypass_cache,
     )
 
     await report_progress(total_steps, total_steps, "[*] Council complete!")

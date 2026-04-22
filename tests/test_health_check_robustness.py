@@ -37,7 +37,7 @@ async def test_council_health_check_403_fallback_success():
         assert data["ready"] is True
         assert "ready_warning" in data
         assert CHAIRMAN_MODEL in data["ready_warning"]
-        assert "403" in data["ready_warning"]
+        assert "restricted" in data["ready_warning"]
         assert data["api_connectivity"]["test_model"] == mc.OPENAI_LOW
         assert "API Key Valid" in data["message"]
 
