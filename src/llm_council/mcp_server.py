@@ -383,7 +383,10 @@ async def council_health_check() -> str:
                 )
                 if credit_resp.status_code == 200:
                     data = credit_resp.json().get("data", {})
-                    checks["account_credits"] = f"${data.get('total_credits', 0):.2f}"
+                    total = data.get("total_credits", 0)
+                    usage = data.get("total_usage", 0)
+                    remaining = total - usage
+                    checks["account_credits"] = f"${remaining:.2f} (Total: ${total:.2f}, Usage: ${usage:.2f})"
                 else:
                     checks["account_credits"] = f"Error: {credit_resp.status_code}"
         except Exception as e:
