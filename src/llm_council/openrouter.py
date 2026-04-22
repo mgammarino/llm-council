@@ -42,6 +42,7 @@ async def query_model(
     disable_tools: bool = False,
     reasoning_params: Optional["ReasoningParams"] = None,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     Query a single model via OpenRouter API.
@@ -57,7 +58,7 @@ async def query_model(
         Response dict with 'content', optional 'reasoning_details', and 'usage', or None if failed
     """
     result = await query_model_with_status(
-        model, messages, timeout, disable_tools, reasoning_params, council_id=council_id
+        model, messages, timeout, disable_tools, reasoning_params, council_id=council_id, bypass_cache=bypass_cache
     )
     if result["status"] == STATUS_OK:
         return {
@@ -75,6 +76,7 @@ async def query_model_with_status(
     disable_tools: bool = False,
     reasoning_params: Optional["ReasoningParams"] = None,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Any]:
     """
     Query a single model via OpenRouter API with structured status (ADR-012).
@@ -97,6 +99,9 @@ async def query_model_with_status(
     }
     if council_id:
         headers["X-Council-ID"] = council_id
+    
+    if bypass_cache:
+        headers["X-OpenRouter-Caching"] = "false"
 
     # Build payload using gateway function for reasoning injection (ADR-026)
     from llm_council.gateway.openrouter import build_openrouter_payload
@@ -183,6 +188,7 @@ async def query_models_parallel(
     timeout: float = 120.0,
     reasoning_params: Optional["ReasoningParams"] = None,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Optional[Dict[str, Any]]]:
     """
     Query multiple models in parallel.
@@ -206,6 +212,7 @@ async def query_models_parallel(
             disable_tools=disable_tools,
             reasoning_params=reasoning_params,
             council_id=council_id,
+            bypass_cache=bypass_cache,
         )
         for model in models
     ]
@@ -229,6 +236,7 @@ async def query_models_with_progress(
     disable_tools: bool = False,
     shared_results: Optional[Dict[str, Dict[str, Any]]] = None,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Query multiple models with progress callbacks and structured status (ADR-012).
@@ -259,7 +267,7 @@ async def query_models_with_progress(
     # Create tasks with model tracking
     async def query_with_tracking(model: str) -> tuple[str, Dict[str, Any]]:
         result = await query_model_with_status(
-            model, messages, timeout=timeout, disable_tools=disable_tools, council_id=council_id
+            model, messages, timeout=timeout, disable_tools=disable_tools, council_id=council_id, bypass_cache=bypass_cache
         )
         return model, result
 

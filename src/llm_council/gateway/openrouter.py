@@ -181,6 +181,7 @@ class OpenRouterGateway(BaseRouter):
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         council_id: Optional[str] = None,
+        bypass_cache: bool = False,
     ) -> Dict[str, Any]:
         """Send a query to OpenRouter API.
 
@@ -205,6 +206,9 @@ class OpenRouterGateway(BaseRouter):
         }
         if council_id:
             headers["X-Council-ID"] = council_id
+        
+        if bypass_cache:
+            headers["X-OpenRouter-Caching"] = "false"
 
         payload: Dict[str, Any] = {
             "model": model,
@@ -317,6 +321,7 @@ class OpenRouterGateway(BaseRouter):
             max_tokens=request.max_tokens,
             temperature=request.temperature,
             council_id=request.council_id,  # Propagate tracing ID (BUG-002)
+            bypass_cache=request.bypass_cache if hasattr(request, "bypass_cache") else False,
         )
 
         # Convert to GatewayResponse

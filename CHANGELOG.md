@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full session persistence for all new configuration flags across the 3-stage flow.
   - Enhanced docstrings for AI-client tool discovery.
 
+### Fixed
+
+- **Orchestration Wiring (BUG-045)**: Resolved `TypeError` when using `bypass_cache` by propagating the flag through all orchestration layers (`stage1.py`, `gateway_adapter.py`, `openrouter.py`). (Refs [#61](https://github.com/mgammarino/llm-council/issues/61))
+
 ### Changed
 
 - **Default Council Tier (ADR-032 Alignment)**: Migrated the default confidence tier from `high` to `balanced`.

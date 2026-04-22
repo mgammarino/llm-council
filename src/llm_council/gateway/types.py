@@ -105,6 +105,8 @@ class GatewayRequest:
     reasoning_params: Optional[ReasoningParams] = None
     # Tracing ID for council deliberation session (BUG-002)
     council_id: Optional[str] = None
+    # Whether to bypass provider caching (ADR-032)
+    bypass_cache: bool = False
 
 
 @dataclass
