@@ -99,6 +99,7 @@ async def query_model(
     timeout: float = 120.0,
     disable_tools: bool = False,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     Query a single model via OpenRouter API.
@@ -132,6 +133,7 @@ async def query_model(
             messages=canonical_messages,
             timeout=timeout,
             council_id=council_id,
+            bypass_cache=bypass_cache,
         )
 
         router = _get_gateway_router()
@@ -151,7 +153,7 @@ async def query_model(
         return None
     else:
         return await _direct_query_model(
-            model, messages, timeout, disable_tools, council_id=council_id
+            model, messages, timeout, disable_tools, council_id=council_id, bypass_cache=bypass_cache
         )
 
 
@@ -161,6 +163,7 @@ async def query_model_with_status(
     timeout: float = 120.0,
     disable_tools: bool = False,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Any]:
     """
     Query a single model with structured status (ADR-012).
@@ -190,6 +193,8 @@ async def query_model_with_status(
             model=model,
             messages=canonical_messages,
             timeout=timeout,
+            council_id=council_id,
+            bypass_cache=bypass_cache,
         )
 
         router = _get_gateway_router()
@@ -197,7 +202,7 @@ async def query_model_with_status(
         return _gateway_response_to_dict(response)
     else:
         return await _direct_query_model_with_status(
-            model, messages, timeout, disable_tools, council_id=council_id
+            model, messages, timeout, disable_tools, council_id=council_id, bypass_cache=bypass_cache
         )
 
 
@@ -207,6 +212,7 @@ async def query_models_parallel(
     disable_tools: bool = False,
     timeout: float = 120.0,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Optional[Dict[str, Any]]]:
     """
     Query multiple models in parallel.
@@ -238,6 +244,7 @@ async def query_models_parallel(
                 messages=canonical_messages,
                 timeout=timeout,
                 council_id=council_id,
+                bypass_cache=bypass_cache,
             )
             for model in models
         ]
@@ -266,7 +273,7 @@ async def query_models_parallel(
         return result
     else:
         return await _direct_query_models_parallel(
-            models, messages, disable_tools, timeout, council_id=council_id
+            models, messages, disable_tools, timeout, council_id=council_id, bypass_cache=bypass_cache
         )
 
 
@@ -282,6 +289,7 @@ async def query_models_with_progress(
     disable_tools: bool = False,
     shared_results: Optional[Dict[str, Dict[str, Any]]] = None,
     council_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Query multiple models with progress callbacks and structured status (ADR-012).
@@ -325,6 +333,7 @@ async def query_models_with_progress(
                     messages=canonical_messages,
                     timeout=timeout,
                     council_id=council_id,
+                    bypass_cache=bypass_cache,
                 )
 
                 router = _get_gateway_router()
@@ -363,4 +372,5 @@ async def query_models_with_progress(
             disable_tools=disable_tools,
             shared_results=shared_results,
             council_id=council_id,
+            bypass_cache=bypass_cache,
         )

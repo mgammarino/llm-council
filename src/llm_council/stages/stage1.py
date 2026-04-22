@@ -81,6 +81,7 @@ async def stage1_collect_responses_with_status(
     shared_raw_responses: Optional[Dict[str, Dict[str, Any]]] = None,
     models: Optional[List[str]] = None,
     session_id: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Dict[str, Any]]]:
     """Stage 1: Collect individual responses with per-model status tracking (ADR-012)."""
     council_models = models if models is not None else _get_council_models()
@@ -93,6 +94,7 @@ async def stage1_collect_responses_with_status(
         timeout=timeout,
         shared_results=shared_raw_responses,
         council_id=session_id,
+        bypass_cache=bypass_cache,
     )
 
     stage1_results = []
@@ -229,6 +231,7 @@ async def run_stage1(
     shared_raw_responses: Optional[Dict[str, Any]] = None,
     session_id: Optional[str] = None,
     council_models: Optional[List[str]] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Any]:
     """Phase 1 Orchestrator: Individual responses and adversarial audit."""
     if council_models is None:
@@ -280,6 +283,7 @@ async def run_stage1(
         shared_raw_responses=shared_raw_responses,
         models=current_council_models,
         session_id=session_id,
+        bypass_cache=bypass_cache,
     )
 
     # 1.5. Style Normalization (ADR-032 stabilization)
@@ -313,6 +317,7 @@ async def run_stage1(
             timeout=per_model_timeout,
             council_id=session_id,
             disable_tools=True,
+            bypass_cache=bypass_cache,
         )
 
         if da_response and da_response.get("status") == STATUS_OK:
