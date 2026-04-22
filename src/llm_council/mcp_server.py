@@ -387,6 +387,8 @@ async def council_health_check() -> str:
                     usage = data.get("total_usage", 0)
                     remaining = total - usage
                     checks["account_credits"] = f"${remaining:.2f} (Total: ${total:.2f}, Usage: ${usage:.2f})"
+                elif credit_resp.status_code == 402:
+                    checks["account_credits"] = "Monthly Limit Reached (402)"
                 else:
                     checks["account_credits"] = f"Error: {credit_resp.status_code}"
         except Exception as e:

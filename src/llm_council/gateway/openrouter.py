@@ -252,6 +252,13 @@ class OpenRouterGateway(BaseRouter):
                         "error": f"Bad request for {model}: {response.text[:200]}",
                     }
 
+                if response.status_code == 402:
+                    return {
+                        "status": "auth_error",
+                        "latency_ms": latency_ms,
+                        "error": f"Monthly Limit Reached or Insufficient Balance (402) for {model}. Please check your OpenRouter credits.",
+                    }
+
                 response.raise_for_status()
 
                 data = response.json()
