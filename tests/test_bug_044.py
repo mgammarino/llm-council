@@ -58,4 +58,4 @@ async def test_health_check_success_with_credits():
         result = json.loads(result_json)
 
         assert result["ready"] is True
-        assert result["account_credits"] == "$25.50"
+        assert "$25.50 (Total: $25.50, Usage: $0.00)" in result["account_credits"]

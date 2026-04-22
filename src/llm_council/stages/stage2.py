@@ -163,6 +163,7 @@ async def stage2_collect_rankings(
     on_progress: Optional[Callable[[int, int, str], Awaitable[None]]] = None,
     session_id: Optional[str] = None,
     dissent_report: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], Dict[str, float]]:
     """Stage 2: Each model ranks the anonymized responses."""
     shuffled_results = stage1_results.copy()
@@ -339,7 +340,12 @@ Now provide your evaluation and ranking:"""
                         pass
     else:
         responses = await query_models_parallel(
-            reviewers, messages, disable_tools=True, timeout=timeout, council_id=session_id
+            reviewers,
+            messages,
+            disable_tools=True,
+            timeout=timeout,
+            council_id=session_id,
+            bypass_cache=bypass_cache,
         )
 
     stage2_results = []
@@ -556,6 +562,7 @@ async def run_stage2(
     per_model_timeout: int = 30,
     tier_contract: Optional[Any] = None,
     council_models: Optional[List[str]] = None,
+    bypass_cache: bool = False,
 ) -> Dict[str, Any]:
     """Phase 2 Orchestrator: Peer review and aggregate ranking."""
     stage1_results = stage1_data["stage1_results"]
@@ -583,6 +590,7 @@ async def run_stage2(
         models=council_models,
         session_id=session_id,
         dissent_report=dissent_report,
+        bypass_cache=bypass_cache,
     )
 
     # ADR-CD: Extract Constructive Dissent (minority opinions)

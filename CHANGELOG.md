@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Orchestration Wiring (BUG-045)**: Resolved `TypeError` when using `bypass_cache` by propagating the flag through all orchestration layers (`stage1.py`, `gateway_adapter.py`, `openrouter.py`). (Refs [#61](https://github.com/mgammarino/llm-council/issues/61))
+- **Orchestration Wiring (BUG-045)**: Resolved `TypeError` when using `bypass_cache` by propagating the flag through all orchestration layers. (Refs [#61](https://github.com/mgammarino/llm-council/issues/61))
+- **Synthesis Resilience & Test Parity (BUG-046)**: Implement ADR-039 fallback in Stage 3 to handle restricted chairman models and synchronized health check tests with new detailed reporting formats. (Refs [#63](https://github.com/mgammarino/llm-council/issues/63))
 
 ### Changed
 
